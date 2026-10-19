@@ -1,0 +1,1242 @@
+{
+  "id": "a300f392-e58c-44a9-96a2-859667d15c1b",
+  "revision": 0,
+  "last_node_id": 37,
+  "last_link_id": 36,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MOSSImageUNETLoader",
+      "pos": [
+        40,
+        1430
+      ],
+      "size": [
+        460,
+        150
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            13
+          ]
+        }
+      ],
+      "title": "MOSS INT8 量化主模型 · 下拉选择",
+      "properties": {
+        "Node name for S&R": "MOSSImageUNETLoader"
+      },
+      "widgets_values": [
+        "moss_image_sft_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [
+        800,
+        1670
+      ],
+      "size": [
+        430,
+        240
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "localized_name": "文本",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "条件",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            18
+          ]
+        }
+      ],
+      "title": "正向提示词 · 自动接收布局 JSON",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "widgets_values_named": {
+        "text": ""
+      }
+    },
+    {
+      "id": 5,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1270,
+        1670
+      ],
+      "size": [
+        430,
+        200
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        },
+        {
+          "localized_name": "文本",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "条件",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            19
+          ]
+        }
+      ],
+      "title": "负向提示词",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "worst quality, bad anatomy, watermark, jpeg artifact"
+      ],
+      "widgets_values_named": {
+        "text": "worst quality, bad anatomy, watermark, jpeg artifact"
+      }
+    },
+    {
+      "id": 6,
+      "type": "EmptyFlux2LatentImage",
+      "pos": [
+        1740,
+        1670
+      ],
+      "size": [
+        300,
+        180
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 35
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 36
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "Latent",
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            20
+          ]
+        }
+      ],
+      "title": "画布尺寸自动同步",
+      "properties": {
+        "Node name for S&R": "EmptyFlux2LatentImage"
+      },
+      "widgets_values": [
+        768,
+        1344,
+        1
+      ],
+      "widgets_values_named": {
+        "width": 768,
+        "height": 1344,
+        "batch_size": 1
+      }
+    },
+    {
+      "id": 13,
+      "type": "SkipLayerGuidanceDiTSimple",
+      "pos": [
+        400,
+        1670
+      ],
+      "size": [
+        340,
+        260
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "模型",
+          "name": "model",
+          "type": "MODEL",
+          "link": 16
+        },
+        {
+          "localized_name": "双层",
+          "name": "double_layers",
+          "type": "STRING",
+          "widget": {
+            "name": "double_layers"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "单层",
+          "name": "single_layers",
+          "type": "STRING",
+          "widget": {
+            "name": "single_layers"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "开始百分比",
+          "name": "start_percent",
+          "type": "FLOAT",
+          "widget": {
+            "name": "start_percent"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "结束百分比",
+          "name": "end_percent",
+          "type": "FLOAT",
+          "widget": {
+            "name": "end_percent"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "模型",
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            17
+          ]
+        }
+      ],
+      "title": "SLG · 跳过第 22 层",
+      "properties": {
+        "Node name for S&R": "SkipLayerGuidanceDiTSimple"
+      },
+      "widgets_values": [
+        "",
+        "22",
+        0,
+        1
+      ],
+      "widgets_values_named": {
+        "double_layers": "",
+        "single_layers": "22",
+        "start_percent": 0,
+        "end_percent": 1
+      }
+    },
+    {
+      "id": 15,
+      "type": "ModelSamplingSD3",
+      "pos": [
+        40,
+        1670
+      ],
+      "size": [
+        310,
+        90
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 4,
+      "inputs": [
+        {
+          "localized_name": "模型",
+          "name": "model",
+          "type": "MODEL",
+          "link": 13
+        },
+        {
+          "localized_name": "移位",
+          "name": "shift",
+          "type": "FLOAT",
+          "widget": {
+            "name": "shift"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "模型",
+          "name": "MODEL",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            16
+          ]
+        }
+      ],
+      "title": "Flow Shift = 5 · 已旁路（MOSS 原生 shift=5，勿叠 SD3）",
+      "properties": {
+        "Node name for S&R": "ModelSamplingSD3"
+      },
+      "widgets_values": [
+        5
+      ],
+      "widgets_values_named": {
+        "shift": 5
+      }
+    },
+    {
+      "id": 16,
+      "type": "KSampler",
+      "pos": [
+        2110,
+        1670
+      ],
+      "size": [
+        270,
+        474
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "模型",
+          "name": "model",
+          "type": "MODEL",
+          "link": 17
+        },
+        {
+          "localized_name": "正面条件",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 18
+        },
+        {
+          "localized_name": "负面条件",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 19
+        },
+        {
+          "localized_name": "Latent图像",
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 20
+        },
+        {
+          "localized_name": "种子",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "步数",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "采样器名称",
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "调度器",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "降噪",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "Latent",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            22
+          ]
+        }
+      ],
+      "title": "MOSS 采样 · 50 步",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        42,
+        "fixed",
+        50,
+        3,
+        "euler",
+        "sgm_uniform",
+        1
+      ],
+      "widgets_values_named": {
+        "seed": 42,
+        "control_after_generate": "fixed",
+        "steps": 50,
+        "cfg": 3,
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
+        "denoise": 1
+      }
+    },
+    {
+      "id": 17,
+      "type": "VAEDecode",
+      "pos": [
+        2440,
+        1670
+      ],
+      "size": [
+        300,
+        180
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "Latent",
+          "name": "samples",
+          "type": "LATENT",
+          "link": 22
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "图像",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            32
+          ]
+        }
+      ],
+      "title": "VAE 解码",
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 21,
+      "type": "Note",
+      "pos": [
+        40,
+        1990
+      ],
+      "size": [
+        1040,
+        280
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "使用说明",
+      "properties": {},
+      "widgets_values": [
+        "本版保留三节点布局编辑器，使用单文件 INT8 量化扩散模型。\n在「MOSS INT8 量化主模型」的 unet_name 下拉框选择模型，weight_dtype 保持 default。\n三个加载节点均从 ComfyUI 标准模型目录下拉选择，不需要指定硬盘路径或整套原版目录。\n主模型放 models/diffusion_models；Qwen3.5 INT8 放 models/text_encoders；Flux2 small VAE 放 models/vae。\n分享包附带 download_models.py 和使用说明；模型权重需另行下载。\n尺寸仍由左上两个整数节点控制；画布拖动与元素提示词的三节点联动保持原有用法。"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 30,
+      "type": "MOSSLayoutCanvas",
+      "pos": [
+        320,
+        100
+      ],
+      "size": [
+        620,
+        1200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 33
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 34
+        },
+        {
+          "localized_name": "state",
+          "name": "state",
+          "type": "STRING",
+          "widget": {
+            "name": "state"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "layout",
+          "name": "layout",
+          "type": "STRING",
+          "links": [
+            27,
+            28
+          ]
+        },
+        {
+          "localized_name": "preview",
+          "name": "preview",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MOSSLayoutCanvas"
+      },
+      "widgets_values": [
+        768,
+        1344,
+        "{\"schema\":\"moss-layout/v1\",\"coordinate_system\":\"percent_xywh\",\"canvas\":{\"width\":768,\"height\":1344},\"global_prompt\":\"一张电影级写实竖版恶搞海报。雨夜的哥谭市街道，高楼和蓝色霓虹灯延伸到远处，湿润柏油路反射灯光，雨丝与薄雾清晰可见。成年蝙蝠侠穿黑色装甲和披风，戴尖耳面罩，骑在一辆普通外卖电动车上，双手握车把、目视前方，车尾是醒目的黄色外卖保温箱。低机位三分之四正面视角，人物、电动车和保温箱是一个连贯的整体。冷蓝色环境光与车灯暖光形成对比，金属装甲、湿润披风和轮胎有真实质感。海报底部留出清晰深色区域，银色金属立体中文主标题“黑暗骑手”，下方黄色单行标语“哥谭可以等，外卖不能凉。”。文字不得遮挡脸部或电动车主体。\",\"elements\":[{\"name\":\"背景 · 固定铺满\",\"tag\":\"固定\",\"type\":\"background\",\"box\":[0,0,100,100],\"prompt\":\"\"},{\"name\":\"等待出发的蝙蝠侠\",\"tag\":\"人物\",\"type\":\"character\",\"box\":[19,17,63.9,55.1],\"prompt\":\"成年蝙蝠侠，黑色尖耳面罩与重型装甲、黑披风，坐在外卖电动车上，双手握住车把，脸朝前方，严肃冷峻，雨水沿盔甲流下。\"},{\"name\":\"普通外卖电动车\",\"tag\":\"主体\",\"type\":\"object\",\"box\":[7,49,85.9,26.9],\"prompt\":\"一辆普通黑色外卖电动车，车头朝左前方，亮着暖白色车灯，车轮接触湿润柏油路，骑手双手与车把自然接触。\"},{\"name\":\"醒目的黄色外卖箱\",\"tag\":\"装饰\",\"type\":\"object\",\"box\":[65,43,28,19],\"prompt\":\"车尾固定的黄色方形外卖保温箱，防水布料和黑色包边，侧面有黑色蝙蝠标志，大小与电动车比例协调。\"},{\"name\":\"黑暗骑士主标题\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[4.9,79,90.1,11],\"prompt\":\"画面下方居中的大号中文主标题，银白色立体金属字，坚硬厚重的电影海报字体，黑色细阴影，完整清晰显示四个字。\",\"text\":\"黑暗骑手\"},{\"name\":\"外卖不能凉\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[7.9,93,84.1,5],\"prompt\":\"海报最下方居中的黄色粗体中文标语，单行，字号小于主标题，完整清晰，背景保持深黑。\",\"text\":\"哥谭可以等，外卖不能凉。\"}]}",
+        ""
+      ],
+      "widgets_values_named": {
+        "width": 768,
+        "height": 1344,
+        "state": "{\"schema\":\"moss-layout/v1\",\"coordinate_system\":\"percent_xywh\",\"canvas\":{\"width\":768,\"height\":1344},\"global_prompt\":\"一张电影级写实竖版恶搞海报。雨夜的哥谭市街道，高楼和蓝色霓虹灯延伸到远处，湿润柏油路反射灯光，雨丝与薄雾清晰可见。成年蝙蝠侠穿黑色装甲和披风，戴尖耳面罩，骑在一辆普通外卖电动车上，双手握车把、目视前方，车尾是醒目的黄色外卖保温箱。低机位三分之四正面视角，人物、电动车和保温箱是一个连贯的整体。冷蓝色环境光与车灯暖光形成对比，金属装甲、湿润披风和轮胎有真实质感。海报底部留出清晰深色区域，银色金属立体中文主标题“黑暗骑手”，下方黄色单行标语“哥谭可以等，外卖不能凉。”。文字不得遮挡脸部或电动车主体。\",\"elements\":[{\"name\":\"背景 · 固定铺满\",\"tag\":\"固定\",\"type\":\"background\",\"box\":[0,0,100,100],\"prompt\":\"\"},{\"name\":\"等待出发的蝙蝠侠\",\"tag\":\"人物\",\"type\":\"character\",\"box\":[19,17,63.9,55.1],\"prompt\":\"成年蝙蝠侠，黑色尖耳面罩与重型装甲、黑披风，坐在外卖电动车上，双手握住车把，脸朝前方，严肃冷峻，雨水沿盔甲流下。\"},{\"name\":\"普通外卖电动车\",\"tag\":\"主体\",\"type\":\"object\",\"box\":[7,49,85.9,26.9],\"prompt\":\"一辆普通黑色外卖电动车，车头朝左前方，亮着暖白色车灯，车轮接触湿润柏油路，骑手双手与车把自然接触。\"},{\"name\":\"醒目的黄色外卖箱\",\"tag\":\"装饰\",\"type\":\"object\",\"box\":[65,43,28,19],\"prompt\":\"车尾固定的黄色方形外卖保温箱，防水布料和黑色包边，侧面有黑色蝙蝠标志，大小与电动车比例协调。\"},{\"name\":\"黑暗骑士主标题\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[4.9,79,90.1,11],\"prompt\":\"画面下方居中的大号中文主标题，银白色立体金属字，坚硬厚重的电影海报字体，黑色细阴影，完整清晰显示四个字。\",\"text\":\"黑暗骑手\"},{\"name\":\"外卖不能凉\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[7.9,93,84.1,5],\"prompt\":\"海报最下方居中的黄色粗体中文标语，单行，字号小于主标题，完整清晰，背景保持深黑。\",\"text\":\"哥谭可以等，外卖不能凉。\"}]}",
+        "moss_canvas_ui": ""
+      },
+      "title": "MOSS 构图布画 · Tag 画笔"
+    },
+    {
+      "id": 31,
+      "type": "MOSSLayoutElements",
+      "pos": [
+        1020,
+        100
+      ],
+      "size": [
+        460,
+        1010
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "layout",
+          "name": "layout",
+          "type": "STRING",
+          "widget": {
+            "name": "layout"
+          },
+          "link": 27
+        },
+        {
+          "localized_name": "state",
+          "name": "state",
+          "type": "STRING",
+          "widget": {
+            "name": "state"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "elements",
+          "name": "elements",
+          "type": "STRING",
+          "links": [
+            29
+          ]
+        },
+        {
+          "localized_name": "character_boxes",
+          "name": "character_boxes",
+          "type": "STRING",
+          "links": [
+            30
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MOSSLayoutElements"
+      },
+      "widgets_values": [
+        "",
+        "{\"schema\":\"moss-layout/v1\",\"coordinate_system\":\"percent_xywh\",\"canvas\":{\"width\":768,\"height\":1344},\"global_prompt\":\"一张电影级写实竖版恶搞海报。雨夜的哥谭市街道，高楼和蓝色霓虹灯延伸到远处，湿润柏油路反射灯光，雨丝与薄雾清晰可见。成年蝙蝠侠穿黑色装甲和披风，戴尖耳面罩，骑在一辆普通外卖电动车上，双手握车把、目视前方，车尾是醒目的黄色外卖保温箱。低机位三分之四正面视角，人物、电动车和保温箱是一个连贯的整体。冷蓝色环境光与车灯暖光形成对比，金属装甲、湿润披风和轮胎有真实质感。海报底部留出清晰深色区域，银色金属立体中文主标题“黑暗骑手”，下方黄色单行标语“哥谭可以等，外卖不能凉。”。文字不得遮挡脸部或电动车主体。\",\"elements\":[{\"name\":\"背景 · 固定铺满\",\"tag\":\"固定\",\"type\":\"background\",\"box\":[0,0,100,100],\"prompt\":\"\"},{\"name\":\"等待出发的蝙蝠侠\",\"tag\":\"人物\",\"type\":\"character\",\"box\":[19,17,63.9,55.1],\"prompt\":\"成年蝙蝠侠，黑色尖耳面罩与重型装甲、黑披风，坐在外卖电动车上，双手握住车把，脸朝前方，严肃冷峻，雨水沿盔甲流下。\"},{\"name\":\"普通外卖电动车\",\"tag\":\"主体\",\"type\":\"object\",\"box\":[7,49,85.9,26.9],\"prompt\":\"一辆普通黑色外卖电动车，车头朝左前方，亮着暖白色车灯，车轮接触湿润柏油路，骑手双手与车把自然接触。\"},{\"name\":\"醒目的黄色外卖箱\",\"tag\":\"装饰\",\"type\":\"object\",\"box\":[65,43,28,19],\"prompt\":\"车尾固定的黄色方形外卖保温箱，防水布料和黑色包边，侧面有黑色蝙蝠标志，大小与电动车比例协调。\"},{\"name\":\"黑暗骑士主标题\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[4.9,79,90.1,11],\"prompt\":\"画面下方居中的大号中文主标题，银白色立体金属字，坚硬厚重的电影海报字体，黑色细阴影，完整清晰显示四个字。\",\"text\":\"黑暗骑手\"},{\"name\":\"外卖不能凉\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[7.9,93,84.1,5],\"prompt\":\"海报最下方居中的黄色粗体中文标语，单行，字号小于主标题，完整清晰，背景保持深黑。\",\"text\":\"哥谭可以等，外卖不能凉。\"}]}",
+        ""
+      ],
+      "widgets_values_named": {
+        "layout": "",
+        "state": "{\"schema\":\"moss-layout/v1\",\"coordinate_system\":\"percent_xywh\",\"canvas\":{\"width\":768,\"height\":1344},\"global_prompt\":\"一张电影级写实竖版恶搞海报。雨夜的哥谭市街道，高楼和蓝色霓虹灯延伸到远处，湿润柏油路反射灯光，雨丝与薄雾清晰可见。成年蝙蝠侠穿黑色装甲和披风，戴尖耳面罩，骑在一辆普通外卖电动车上，双手握车把、目视前方，车尾是醒目的黄色外卖保温箱。低机位三分之四正面视角，人物、电动车和保温箱是一个连贯的整体。冷蓝色环境光与车灯暖光形成对比，金属装甲、湿润披风和轮胎有真实质感。海报底部留出清晰深色区域，银色金属立体中文主标题“黑暗骑手”，下方黄色单行标语“哥谭可以等，外卖不能凉。”。文字不得遮挡脸部或电动车主体。\",\"elements\":[{\"name\":\"背景 · 固定铺满\",\"tag\":\"固定\",\"type\":\"background\",\"box\":[0,0,100,100],\"prompt\":\"\"},{\"name\":\"等待出发的蝙蝠侠\",\"tag\":\"人物\",\"type\":\"character\",\"box\":[19,17,63.9,55.1],\"prompt\":\"成年蝙蝠侠，黑色尖耳面罩与重型装甲、黑披风，坐在外卖电动车上，双手握住车把，脸朝前方，严肃冷峻，雨水沿盔甲流下。\"},{\"name\":\"普通外卖电动车\",\"tag\":\"主体\",\"type\":\"object\",\"box\":[7,49,85.9,26.9],\"prompt\":\"一辆普通黑色外卖电动车，车头朝左前方，亮着暖白色车灯，车轮接触湿润柏油路，骑手双手与车把自然接触。\"},{\"name\":\"醒目的黄色外卖箱\",\"tag\":\"装饰\",\"type\":\"object\",\"box\":[65,43,28,19],\"prompt\":\"车尾固定的黄色方形外卖保温箱，防水布料和黑色包边，侧面有黑色蝙蝠标志，大小与电动车比例协调。\"},{\"name\":\"黑暗骑士主标题\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[4.9,79,90.1,11],\"prompt\":\"画面下方居中的大号中文主标题，银白色立体金属字，坚硬厚重的电影海报字体，黑色细阴影，完整清晰显示四个字。\",\"text\":\"黑暗骑手\"},{\"name\":\"外卖不能凉\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[7.9,93,84.1,5],\"prompt\":\"海报最下方居中的黄色粗体中文标语，单行，字号小于主标题，完整清晰，背景保持深黑。\",\"text\":\"哥谭可以等，外卖不能凉。\"}]}",
+        "moss_elements_ui": ""
+      },
+      "title": "MOSS 元素管理 · 定位 / 提示词"
+    },
+    {
+      "id": 32,
+      "type": "MOSSLayoutStandardPrompt",
+      "pos": [
+        1540,
+        100
+      ],
+      "size": [
+        540,
+        1090
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "layout",
+          "name": "layout",
+          "type": "STRING",
+          "widget": {
+            "name": "layout"
+          },
+          "link": 28
+        },
+        {
+          "localized_name": "elements",
+          "name": "elements",
+          "type": "STRING",
+          "widget": {
+            "name": "elements"
+          },
+          "link": 29
+        },
+        {
+          "localized_name": "character_boxes",
+          "name": "character_boxes",
+          "type": "STRING",
+          "widget": {
+            "name": "character_boxes"
+          },
+          "link": 30
+        },
+        {
+          "localized_name": "state",
+          "name": "state",
+          "type": "STRING",
+          "widget": {
+            "name": "state"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            31
+          ]
+        },
+        {
+          "localized_name": "standard_prompt",
+          "name": "standard_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MOSSLayoutStandardPrompt"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "",
+        "{\"schema\":\"moss-layout/v1\",\"coordinate_system\":\"percent_xywh\",\"canvas\":{\"width\":768,\"height\":1344},\"global_prompt\":\"一张电影级写实竖版恶搞海报。雨夜的哥谭市街道，高楼和蓝色霓虹灯延伸到远处，湿润柏油路反射灯光，雨丝与薄雾清晰可见。成年蝙蝠侠穿黑色装甲和披风，戴尖耳面罩，骑在一辆普通外卖电动车上，双手握车把、目视前方，车尾是醒目的黄色外卖保温箱。低机位三分之四正面视角，人物、电动车和保温箱是一个连贯的整体。冷蓝色环境光与车灯暖光形成对比，金属装甲、湿润披风和轮胎有真实质感。海报底部留出清晰深色区域，银色金属立体中文主标题“黑暗骑手”，下方黄色单行标语“哥谭可以等，外卖不能凉。”。文字不得遮挡脸部或电动车主体。\",\"elements\":[{\"name\":\"背景 · 固定铺满\",\"tag\":\"固定\",\"type\":\"background\",\"box\":[0,0,100,100],\"prompt\":\"\"},{\"name\":\"等待出发的蝙蝠侠\",\"tag\":\"人物\",\"type\":\"character\",\"box\":[19,17,63.9,55.1],\"prompt\":\"成年蝙蝠侠，黑色尖耳面罩与重型装甲、黑披风，坐在外卖电动车上，双手握住车把，脸朝前方，严肃冷峻，雨水沿盔甲流下。\"},{\"name\":\"普通外卖电动车\",\"tag\":\"主体\",\"type\":\"object\",\"box\":[7,49,85.9,26.9],\"prompt\":\"一辆普通黑色外卖电动车，车头朝左前方，亮着暖白色车灯，车轮接触湿润柏油路，骑手双手与车把自然接触。\"},{\"name\":\"醒目的黄色外卖箱\",\"tag\":\"装饰\",\"type\":\"object\",\"box\":[65,43,28,19],\"prompt\":\"车尾固定的黄色方形外卖保温箱，防水布料和黑色包边，侧面有黑色蝙蝠标志，大小与电动车比例协调。\"},{\"name\":\"黑暗骑士主标题\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[4.9,79,90.1,11],\"prompt\":\"画面下方居中的大号中文主标题，银白色立体金属字，坚硬厚重的电影海报字体，黑色细阴影，完整清晰显示四个字。\",\"text\":\"黑暗骑手\"},{\"name\":\"外卖不能凉\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[7.9,93,84.1,5],\"prompt\":\"海报最下方居中的黄色粗体中文标语，单行，字号小于主标题，完整清晰，背景保持深黑。\",\"text\":\"哥谭可以等，外卖不能凉。\"}]}",
+        ""
+      ],
+      "widgets_values_named": {
+        "layout": "",
+        "elements": "",
+        "character_boxes": "",
+        "state": "{\"schema\":\"moss-layout/v1\",\"coordinate_system\":\"percent_xywh\",\"canvas\":{\"width\":768,\"height\":1344},\"global_prompt\":\"一张电影级写实竖版恶搞海报。雨夜的哥谭市街道，高楼和蓝色霓虹灯延伸到远处，湿润柏油路反射灯光，雨丝与薄雾清晰可见。成年蝙蝠侠穿黑色装甲和披风，戴尖耳面罩，骑在一辆普通外卖电动车上，双手握车把、目视前方，车尾是醒目的黄色外卖保温箱。低机位三分之四正面视角，人物、电动车和保温箱是一个连贯的整体。冷蓝色环境光与车灯暖光形成对比，金属装甲、湿润披风和轮胎有真实质感。海报底部留出清晰深色区域，银色金属立体中文主标题“黑暗骑手”，下方黄色单行标语“哥谭可以等，外卖不能凉。”。文字不得遮挡脸部或电动车主体。\",\"elements\":[{\"name\":\"背景 · 固定铺满\",\"tag\":\"固定\",\"type\":\"background\",\"box\":[0,0,100,100],\"prompt\":\"\"},{\"name\":\"等待出发的蝙蝠侠\",\"tag\":\"人物\",\"type\":\"character\",\"box\":[19,17,63.9,55.1],\"prompt\":\"成年蝙蝠侠，黑色尖耳面罩与重型装甲、黑披风，坐在外卖电动车上，双手握住车把，脸朝前方，严肃冷峻，雨水沿盔甲流下。\"},{\"name\":\"普通外卖电动车\",\"tag\":\"主体\",\"type\":\"object\",\"box\":[7,49,85.9,26.9],\"prompt\":\"一辆普通黑色外卖电动车，车头朝左前方，亮着暖白色车灯，车轮接触湿润柏油路，骑手双手与车把自然接触。\"},{\"name\":\"醒目的黄色外卖箱\",\"tag\":\"装饰\",\"type\":\"object\",\"box\":[65,43,28,19],\"prompt\":\"车尾固定的黄色方形外卖保温箱，防水布料和黑色包边，侧面有黑色蝙蝠标志，大小与电动车比例协调。\"},{\"name\":\"黑暗骑士主标题\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[4.9,79,90.1,11],\"prompt\":\"画面下方居中的大号中文主标题，银白色立体金属字，坚硬厚重的电影海报字体，黑色细阴影，完整清晰显示四个字。\",\"text\":\"黑暗骑手\"},{\"name\":\"外卖不能凉\",\"tag\":\"文字\",\"type\":\"text\",\"box\":[7.9,93,84.1,5],\"prompt\":\"海报最下方居中的黄色粗体中文标语，单行，字号小于主标题，完整清晰，背景保持深黑。\",\"text\":\"哥谭可以等，外卖不能凉。\"}]}",
+        "moss_prompt_ui": ""
+      },
+      "title": "MOSS 标准提示词 · 导入 / 整理 / 导出"
+    },
+    {
+      "id": 33,
+      "type": "SaveImageAdvanced",
+      "pos": [
+        2100,
+        100
+      ],
+      "size": [
+        600,
+        1000
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "图像",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 32
+        },
+        {
+          "localized_name": "文件名前缀",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "位深度",
+          "name": "format.bit_depth",
+          "type": "COMBO",
+          "widget": {
+            "name": "format.bit_depth"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "输入色彩空间",
+          "name": "format.input_color_space",
+          "type": "COMBO",
+          "widget": {
+            "name": "format.input_color_space"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "格式",
+          "name": "format",
+          "type": "COMFY_DYNAMICCOMBO_V3",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "MOSS-Image/layout/int8-poster",
+        "png",
+        "8-bit",
+        "sRGB"
+      ]
+    },
+    {
+      "id": 34,
+      "type": "PrimitiveInt",
+      "pos": [
+        40,
+        120
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "数值",
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "整数",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            33,
+            35
+          ]
+        }
+      ],
+      "title": "尺寸源 · 宽",
+      "properties": {
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [
+        768,
+        "fixed"
+      ],
+      "widgets_values_named": {
+        "value": 768,
+        "fixed": "fixed"
+      }
+    },
+    {
+      "id": 35,
+      "type": "PrimitiveInt",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        220,
+        90
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "数值",
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "整数",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            34,
+            36
+          ]
+        }
+      ],
+      "title": "尺寸源 · 高",
+      "properties": {
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [
+        1344,
+        "fixed"
+      ],
+      "widgets_values_named": {
+        "value": 1344,
+        "fixed": "fixed"
+      }
+    },
+    {
+      "id": 36,
+      "type": "MOSSImageCLIPLoader",
+      "title": "MOSS INT8 文本编码器 · 下拉选择",
+      "pos": [
+        540,
+        1430
+      ],
+      "size": [
+        460,
+        130
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "name": "device",
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 0,
+          "links": [
+            1,
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MOSSImageCLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3.5_9b_int8_convrot.safetensors",
+        "default"
+      ]
+    },
+    {
+      "id": 37,
+      "type": "VAELoader",
+      "title": "Flux2 VAE · 下拉选择",
+      "pos": [
+        1040,
+        1430
+      ],
+      "size": [
+        460,
+        130
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "slot_index": 0,
+          "links": [
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "flux2-vae_small.safetensors"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      36,
+      0,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      36,
+      0,
+      5,
+      0,
+      "CLIP"
+    ],
+    [
+      13,
+      1,
+      0,
+      15,
+      0,
+      "MODEL"
+    ],
+    [
+      16,
+      15,
+      0,
+      13,
+      0,
+      "MODEL"
+    ],
+    [
+      17,
+      13,
+      0,
+      16,
+      0,
+      "MODEL"
+    ],
+    [
+      18,
+      4,
+      0,
+      16,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      19,
+      5,
+      0,
+      16,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      20,
+      6,
+      0,
+      16,
+      3,
+      "LATENT"
+    ],
+    [
+      22,
+      16,
+      0,
+      17,
+      0,
+      "LATENT"
+    ],
+    [
+      23,
+      37,
+      0,
+      17,
+      1,
+      "VAE"
+    ],
+    [
+      27,
+      30,
+      0,
+      31,
+      0,
+      "STRING"
+    ],
+    [
+      28,
+      30,
+      0,
+      32,
+      0,
+      "STRING"
+    ],
+    [
+      29,
+      31,
+      0,
+      32,
+      1,
+      "STRING"
+    ],
+    [
+      30,
+      31,
+      1,
+      32,
+      2,
+      "STRING"
+    ],
+    [
+      31,
+      32,
+      0,
+      4,
+      1,
+      "STRING"
+    ],
+    [
+      32,
+      17,
+      0,
+      33,
+      0,
+      "IMAGE"
+    ],
+    [
+      33,
+      34,
+      0,
+      30,
+      0,
+      "INT"
+    ],
+    [
+      34,
+      35,
+      0,
+      30,
+      1,
+      "INT"
+    ],
+    [
+      35,
+      34,
+      0,
+      6,
+      0,
+      "INT"
+    ],
+    [
+      36,
+      35,
+      0,
+      6,
+      1,
+      "INT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.45,
+      "offset": [
+        150,
+        80
+      ]
+    },
+    "moss_layout_source": "tools/moss-layout-ui/build_workflow.mjs",
+    "moss_layout_revision": "0322fcab30a653f3a2d2f0aa0d2cb62cc4ea8e8c",
+    "moss_layout_legacy": "output/moss-layout/MOSS-布局海报-768x1344-日常版.json"
+  },
+  "version": 0.4
+}

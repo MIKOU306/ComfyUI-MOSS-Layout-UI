@@ -1,0 +1,20 @@
+[project]
+name = "comfyui-moss-layout-ui"
+version = "1.0.0"
+description = "Visual layout editor for MOSS-Image: draw boxes on a canvas and compile the official summary/items layout JSON."
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI"
+
+[tool.comfy]
+# 发布到 ComfyUI Registry 前，先在 registry.comfy.org 注册你的 PublisherId 再改成它
+PublisherId = "mikou306"
+DisplayName = "MOSS Layout UI"
+Icon = "https://raw.githubusercontent.com/MIKOU306/ComfyUI-MOSS-Layout-UI/main/docs/screenshot-square.png"
+includes = ["web", "examples", "docs"]
