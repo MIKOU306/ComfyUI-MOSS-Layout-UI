@@ -10,7 +10,9 @@ classifiers = [
 ]
 
 [project.urls]
+Repository = "https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI"
 Homepage = "https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI"
+Documentation = "https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI#readme"
 
 [tool.comfy]
 # 发布到 ComfyUI Registry 前，先在 registry.comfy.org 注册你的 PublisherId 再改成它
