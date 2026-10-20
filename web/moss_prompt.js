@@ -1,8 +1,8 @@
 // MOSS 标准提示词节点 UI: 全局提示词 + 标准 JSON 导入/合并/导出 + 最终生成词预览.
-// 与 harness 页面共用同一个 layoutStore, 不依赖 ComfyUI 模块 (除底部注册扩展).
+// 与 harness 页面共用按连线分组的数据层，不依赖 ComfyUI 模块 (除底部注册扩展).
 
 import {
-  h, injectStyle, layoutStore, syncFooter, button, compilePrompt, parseLayout,
+  h, injectStyle, getLayoutStore, syncFooter, button, compilePrompt, parseLayout,
   serializePretty,
 } from "./moss_common.js";
 
@@ -79,6 +79,7 @@ function readRawLayout(text) {
 }
 
 export function mountPrompt(node) {
+  const layoutStore = getLayoutStore(node);
   injectStyle(STYLE_ID, CSS);
 
   let tab = "json";

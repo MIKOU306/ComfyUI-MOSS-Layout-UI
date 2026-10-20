@@ -1,0 +1,43 @@
+name: Publish to Comfy Registry
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-comfy-registry
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Check publishing credential
+        env:
+          REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$REGISTRY_ACCESS_TOKEN" ]; then
+            echo "::error::Add the mikou306 Registry API key as the REGISTRY_ACCESS_TOKEN repository secret."
+            exit 1
+          fi
+
+      - name: Read current version changelog
+        run: |
+          {
+            echo 'COMFY_NODE_CHANGELOG<<MOSS_RELEASE_CHANGELOG'
+            awk '/^## / { if (found) exit; found=1 } found { print }' CHANGELOG.md
+            echo 'MOSS_RELEASE_CHANGELOG'
+          } >> "$GITHUB_ENV"
+
+      - name: Publish node version
+        uses: Comfy-Org/publish-node-action@d2366e7abb6ab16f3bb03e3520ae25c8cf749bc9
+        with:
+          skip_checkout: 'true'
+          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}

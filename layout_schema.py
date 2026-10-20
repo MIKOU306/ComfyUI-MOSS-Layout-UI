@@ -210,7 +210,8 @@ def compile_prompt(layout):
     width = layout["canvas"]["width"]
     height = layout["canvas"]["height"]
     foreground = [element for element in layout["elements"] if element["type"] != "background"]
-    caption = layout["global_prompt"].strip()
+    background = layout["elements"][0]["prompt"].strip()
+    caption = "\n".join(dict.fromkeys(part for part in (layout["global_prompt"].strip(), background) if part))
     if foreground:
         prompt = {
             "summary": {"caption": caption},

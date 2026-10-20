@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-moss-layout-ui"
-version = "1.0.0"
+version = "1.0.1"
 description = "Visual layout editor for MOSS-Image: draw boxes on a canvas and compile the official summary/items layout JSON."
 license = { file = "LICENSE" }
 requires-python = ">=3.9"

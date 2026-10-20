@@ -4,7 +4,7 @@
 
 import {
   TAGS, TYPES, TAG_TYPE, h, injectStyle, tagColor, padIndex, autosizeTextarea,
-  layoutStore, syncFooter, button,
+  getLayoutStore, syncFooter, button,
 } from "./moss_common.js";
 
 const CLASS = "MOSSLayoutElements";
@@ -94,6 +94,7 @@ const CSS = `
 `;
 
 export function mountElements(node) {
+  const layoutStore = getLayoutStore(node);
   injectStyle(STYLE_ID, CSS);
 
   let query = "";
@@ -160,8 +161,8 @@ export function mountElements(node) {
     class: "ml-textarea mle-prompt", rows: "5", spellcheck: "false",
     placeholder: PROMPT_PLACEHOLDER,
   });
-  const textInput = h("input", {
-    class: "ml-input", type: "text", spellcheck: "false", placeholder: "海报上显示的文字内容",
+  const textInput = h("textarea", {
+    class: "ml-textarea mle-text", rows: "3", spellcheck: "false", placeholder: "海报上显示的文字内容",
   });
   const textField = labelled("文字内容", textInput);
   textField.classList.add("mle-hidden");

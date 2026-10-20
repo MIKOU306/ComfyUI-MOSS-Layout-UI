@@ -1,8 +1,8 @@
 // MOSS 构图布画 · Tag 画笔 — the drawing board of the layout poster workflow.
 import {
-  h, injectStyle, layoutStore, setGraphDirtyHook,
+  h, injectStyle, getLayoutStore, setGraphDirtyHook,
   TAG_IDS, TAG_COLORS, TAG_TYPE,
-  createLayout, clampBox, elementLabel, nextElementName,
+  clampBox, elementLabel, nextElementName,
   tagColor, syncFooter,
 } from "./moss_common.js";
 
@@ -67,6 +67,7 @@ const CSS = `
 `;
 
 function mountCanvas(node) {
+  const layoutStore = getLayoutStore(node);
   injectStyle(STYLE_ID, CSS);
   const sizeWidgets = {
     width: node.widgets?.find((widget) => widget.name === "width"),
@@ -475,9 +476,9 @@ function mountCanvas(node) {
 
   function clearCanvas() {
     if (!window.confirm("清空画布？所有前景元素都会删除，只保留背景。")) return;
-    const size = canvasSize();
+    const layout = layoutStore.get();
     pushHistory();
-    layoutStore.replace(createLayout(size.width, size.height), node.id);
+    layoutStore.replace({ ...layout, elements: [layout.elements[0]] }, node.id);
     layoutStore.setSelection(-1, node.id);
     requestDraw();
   }

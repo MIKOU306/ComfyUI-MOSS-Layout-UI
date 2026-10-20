@@ -372,7 +372,8 @@ export function compilePrompt(layout) {
   const normalized = normalizeLayout(layout);
   const { width, height } = normalized.canvas;
   const foreground = normalized.elements.filter((element) => element.type !== "background");
-  const caption = normalized.global_prompt.trim();
+  const background = normalized.elements[0].prompt.trim();
+  const caption = [...new Set([normalized.global_prompt.trim(), background].filter(Boolean))].join("\n");
   let prompt = caption;
   if (foreground.length) {
     prompt = JSON.stringify({
@@ -386,18 +387,13 @@ export function compilePrompt(layout) {
 }
 
 // ---------------------------------------------------------------------------
-// Shared layout store: every MOSS layout node edits the same object.
+// Nodes share a layout only through their upstream layout connections. A
+// separate canvas (including one in another graph) always owns a separate store.
 // ---------------------------------------------------------------------------
 
-const state = {
-  layout: null,
-  seeded: false,
-  selection: -1,
-};
-
-const listeners = new Set();
-const selectionListeners = new Set();
-const registered = new Map();
+const groups = new WeakMap();
+const bindings = new Map();
+const pendingGraphs = new WeakSet();
 let dirtyHook = null;
 
 export function setGraphDirtyHook(fn) {
@@ -414,26 +410,6 @@ function dirty() {
   }
 }
 
-function notify(origin) {
-  if (!state.layout) return;
-  for (const entry of registered.values()) {
-    if (entry.widget) entry.widget.value = serializeLayout(state.layout);
-    try {
-      entry.onChange?.(state.layout, origin);
-    } catch (error) {
-      console.error("[moss-layout-ui] node update failed", error);
-    }
-  }
-  for (const listener of [...listeners]) {
-    try {
-      listener(state.layout, origin);
-    } catch (error) {
-      console.error("[moss-layout-ui] store listener failed", error);
-    }
-  }
-  dirty();
-}
-
 function defaultSize(node) {
   const widthWidget = node?.widgets?.find((widget) => widget.name === "width");
   const heightWidget = node?.widgets?.find((widget) => widget.name === "height");
@@ -443,121 +419,204 @@ function defaultSize(node) {
   });
 }
 
-function ensureLayout(node) {
-  if (!state.layout) state.layout = createLayout(defaultSize(node).width, defaultSize(node).height);
-  return state.layout;
+function upstreamCanvas(node, seen = new Set()) {
+  if (!node || seen.has(node)) return null;
+  seen.add(node);
+  const type = node.comfyClass ?? node.type;
+  if (type === "MOSSLayoutCanvas") return node;
+  if (type !== "Reroute" && type !== "MOSSLayoutElements" && type !== "MOSSLayoutStandardPrompt") return null;
+  const names = type === "Reroute" ? [node.inputs?.[0]?.name] : ["layout", "elements", "character_boxes"];
+  for (const name of names) {
+    const slot = node.inputs?.findIndex((input) => input.name === name) ?? -1;
+    if (slot < 0 || node.inputs[slot].link == null) continue;
+    const canvas = upstreamCanvas(node.getInputNode?.(slot), seen);
+    if (canvas) return canvas;
+  }
+  return null;
 }
 
-export const layoutStore = {
-  get() {
-    return state.layout ?? createLayout();
-  },
-  get seeded() {
-    return state.seeded;
-  },
-  get selection() {
-    return state.selection;
-  },
-  subscribe(listener) {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  },
-  subscribeSelection(listener) {
-    selectionListeners.add(listener);
-    return () => selectionListeners.delete(listener);
-  },
-  setSelection(index, origin = "selection") {
-    const next = Number.isInteger(index) ? index : -1;
-    if (state.selection === next) return;
-    state.selection = next;
-    for (const listener of [...selectionListeners]) {
-      try {
-        listener(next, origin);
-      } catch (error) {
-        console.error("[moss-layout-ui] selection listener failed", error);
-      }
+function groupFor(entry) {
+  const owner = upstreamCanvas(entry.node) ?? entry.node;
+  let group = groups.get(owner);
+  if (!group) {
+    const saved = parseLayout(owner.widgets?.find((widget) => widget.name === "state")?.value);
+    const size = defaultSize(owner);
+    group = { layout: saved ?? createLayout(size.width, size.height), seeded: Boolean(saved), selection: -1 };
+    groups.set(owner, group);
+  }
+  // Disconnecting an editor preserves its last visible layout as a standalone
+  // fallback. Reconnecting it uses the newly connected canvas as authority.
+  if (entry.group && entry.group !== group && owner === entry.node && owner.comfyClass !== "MOSSLayoutCanvas" && owner.type !== "MOSSLayoutCanvas") {
+    const saved = parseLayout(entry.widget?.value);
+    if (saved) {
+      group.layout = saved;
+      group.seeded = true;
     }
-    dirty();
-  },
-  update(mutator, origin) {
-    const layout = ensureLayout();
-    mutator(layout);
-    state.layout = normalizeLayout(layout);
-    notify(origin);
-    return state.layout;
-  },
-  mutateElement(index, patch, origin) {
-    return this.update((layout) => {
-      const element = layout.elements[index];
-      if (!element || element.type === "background") return;
-      Object.assign(element, patch);
-      if (element.type === "text" && typeof element.text !== "string") element.text = "";
-    }, origin);
-  },
-  replace(next, origin) {
-    const layout = parseLayout(next) ?? normalizeLayout(next);
-    state.layout = layout;
-    state.seeded = true;
-    if (state.selection >= layout.elements.length) state.selection = -1;
-    notify(origin);
-    return layout;
-  },
-  reset() {
-    state.layout = null;
-    state.seeded = false;
-    state.selection = -1;
-  },
-  register(node, onChange) {
-    // Every text widget of these nodes is replaced by the DOM editor; keep the
-    // serialized values but shrink them to nothing so the node body is all UI.
-    for (const entry of node.widgets ?? []) {
-      if (!HIDDEN_WIDGETS.has(entry.name)) continue;
-      entry.hidden = true;
-      entry.computeSize = () => [0, -4];
-      entry.options = entry.options ?? {};
-      entry.options.getMinHeight = () => 0;
-      entry.options.getMaxHeight = () => 0;
-    }
-    const widget = node.widgets?.find((entry) => entry.name === "state");
-    ensureLayout(node);
-    const entry = { node, widget, onChange };
-    registered.set(node, entry);
+  }
+  entry.group = group;
+  return group;
+}
 
-    function syncWidget() {
-      if (widget && state.layout) widget.value = serializeLayout(state.layout);
-    }
-    syncWidget();
-    onChange?.(state.layout, "init");
+function callListener(listener, ...args) {
+  try {
+    listener?.(...args);
+  } catch (error) {
+    console.error("[moss-layout-ui] node update failed", error);
+  }
+}
 
-    const originalConfigure = node.onConfigure;
-    node.onConfigure = function (...args) {
-      const result = originalConfigure?.apply(this, args);
-      const saved = parseLayout(widget?.value);
-      if (!state.seeded && saved) {
-        state.layout = saved;
-        state.seeded = true;
+function notify(group, origin, selectionOnly = false) {
+  for (const entry of bindings.values()) {
+    if (groupFor(entry) !== group) continue;
+    if (!selectionOnly) {
+      if (entry.widget) entry.widget.value = serializeLayout(group.layout);
+      callListener(entry.onChange, group.layout, origin);
+      for (const listener of [...entry.listeners]) callListener(listener, group.layout, origin);
+    }
+    for (const listener of [...entry.selectionListeners]) callListener(listener, group.selection, origin);
+  }
+  dirty();
+}
+
+function refreshConnections(graph) {
+  if (!graph || pendingGraphs.has(graph)) return;
+  pendingGraphs.add(graph);
+  // LiteGraph changes both ends of links in stages, including during import.
+  queueMicrotask(() => {
+    pendingGraphs.delete(graph);
+    const changed = new Set();
+    for (const entry of bindings.values()) {
+      if (entry.node.graph !== graph) continue;
+      const previous = entry.group;
+      const group = groupFor(entry);
+      if (previous !== group) changed.add(group);
+    }
+    for (const group of changed) notify(group, "connections");
+  });
+}
+
+export function getLayoutStore(node) {
+  const existing = bindings.get(node);
+  if (existing) return existing.store;
+  const entry = { node, widget: null, onChange: null, group: null, listeners: new Set(), selectionListeners: new Set() };
+  const current = () => groupFor(entry);
+  const store = {
+    get() {
+      return current().layout;
+    },
+    get seeded() {
+      return current().seeded;
+    },
+    get selection() {
+      return current().selection;
+    },
+    subscribe(listener) {
+      entry.listeners.add(listener);
+      return () => entry.listeners.delete(listener);
+    },
+    subscribeSelection(listener) {
+      entry.selectionListeners.add(listener);
+      return () => entry.selectionListeners.delete(listener);
+    },
+    setSelection(index, origin = "selection") {
+      const state = current();
+      const next = Number.isInteger(index) ? index : -1;
+      if (state.selection === next) return;
+      state.selection = next;
+      notify(state, origin, true);
+    },
+    update(mutator, origin) {
+      const state = current();
+      const layout = state.layout;
+      mutator(layout);
+      state.layout = normalizeLayout(layout);
+      state.seeded = true;
+      notify(state, origin);
+      return state.layout;
+    },
+    mutateElement(index, patch, origin) {
+      return this.update((layout) => {
+        const element = layout.elements[index];
+        if (!element || element.type === "background") return;
+        Object.assign(element, patch);
+        if (element.type === "text" && typeof element.text !== "string") element.text = "";
+      }, origin);
+    },
+    replace(next, origin) {
+      const state = current();
+      const layout = parseLayout(next) ?? normalizeLayout(next);
+      state.layout = layout;
+      state.seeded = true;
+      if (state.selection >= layout.elements.length) state.selection = -1;
+      notify(state, origin);
+      return layout;
+    },
+    register(registeredNode, onChange) {
+      if (registeredNode !== node) throw new Error("MOSS layout store belongs to a different node");
+      // Every text widget of these nodes is replaced by the DOM editor; keep the
+      // serialized values but shrink them to nothing so the node body is all UI.
+      for (const entry of node.widgets ?? []) {
+        if (!HIDDEN_WIDGETS.has(entry.name)) continue;
+        entry.hidden = true;
+        entry.computeSize = () => [0, -4];
+        entry.options = entry.options ?? {};
+        entry.options.getMinHeight = () => 0;
+        entry.options.getMaxHeight = () => 0;
       }
-      ensureLayout(node);
-      if (state.selection < 0 && state.layout.elements.length > 1) state.selection = 1;
+      const widget = node.widgets?.find((entry) => entry.name === "state");
+      entry.widget = widget;
+      entry.onChange = onChange;
+
+      function syncWidget() {
+        if (widget) widget.value = serializeLayout(current().layout);
+      }
       syncWidget();
-      onChange?.(state.layout, "configure");
-      return result;
-    };
+      onChange?.(current().layout, "init");
 
-    const originalRemoved = node.onRemoved;
-    node.onRemoved = function (...args) {
-      registered.delete(node);
-      if (!registered.size) layoutStore.reset();
-      return originalRemoved?.apply(this, args);
-    };
+      const originalConfigure = node.onConfigure;
+      node.onConfigure = function (...args) {
+        const result = originalConfigure?.apply(this, args);
+        const saved = parseLayout(widget?.value);
+        const state = current();
+        const canvas = upstreamCanvas(node);
+        // The owning canvas wins regardless of node configuration order. Editors
+        // may seed an empty group, but cannot overwrite a connected canvas.
+        if (saved && (canvas === node || !canvas || !state.seeded)) {
+          state.layout = saved;
+          state.seeded = true;
+        }
+        if (state.selection < 0 && state.layout.elements.length > 1) state.selection = 1;
+        notify(state, "configure");
+        refreshConnections(node.graph);
+        return result;
+      };
 
-    return {
-      syncWidget,
-      get layout() {
-        return state.layout;
-      },
-    };
-  },
-};
+      for (const hook of ["onConnectionsChange", "onAdded"]) {
+        const original = node[hook];
+        node[hook] = function (...args) {
+          const result = original?.apply(this, args);
+          refreshConnections(node.graph);
+          return result;
+        };
+      }
+      const originalRemoved = node.onRemoved;
+      node.onRemoved = function (...args) {
+        bindings.delete(node);
+        refreshConnections(node.graph);
+        return originalRemoved?.apply(this, args);
+      };
+
+      return {
+        syncWidget,
+        get layout() {
+          return current().layout;
+        },
+      };
+    },
+  };
+  entry.store = store;
+  bindings.set(node, entry);
+  return store;
+}
 
 ensureBaseStyle();

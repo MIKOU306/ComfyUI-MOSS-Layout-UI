@@ -1,0 +1,847 @@
+{
+  "checks": [
+    {
+      "label": "two independent chains restore captions and text",
+      "pass": true,
+      "details": {
+        "a": {
+          "schema": "moss-layout/v1",
+          "coordinate_system": "percent_xywh",
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          },
+          "global_prompt": "独立布局 A：文字海报。",
+          "elements": [
+            {
+              "name": "背景",
+              "tag": "固定",
+              "type": "background",
+              "box": [
+                0,
+                0,
+                100,
+                100
+              ],
+              "prompt": "FIX_BACKGROUND: rainy red city with neon reflections."
+            },
+            {
+              "name": "A 的文字",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                20,
+                20,
+                50,
+                30
+              ],
+              "prompt": "清晰的中文标题，两行排列。",
+              "text": "第一行\n第二行"
+            }
+          ]
+        },
+        "b": {
+          "schema": "moss-layout/v1",
+          "coordinate_system": "percent_xywh",
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          },
+          "global_prompt": "ONLY GROUP B SHOULD CHANGE",
+          "elements": [
+            {
+              "name": "背景",
+              "tag": "固定",
+              "type": "background",
+              "box": [
+                0,
+                0,
+                100,
+                100
+              ],
+              "prompt": "原始背景描述。"
+            },
+            {
+              "name": "B 的文字",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                55,
+                60,
+                40,
+                20
+              ],
+              "prompt": "清晰的中文标题，两行排列。",
+              "text": "SECOND CHAIN"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "editing chain B updates B only",
+      "pass": true,
+      "details": [
+        {
+          "id": 30,
+          "caption": "独立布局 A：文字海报。"
+        },
+        {
+          "id": 31,
+          "caption": "独立布局 A：文字海报。"
+        },
+        {
+          "id": 32,
+          "caption": "独立布局 A：文字海报。"
+        },
+        {
+          "id": 130,
+          "caption": "ONLY GROUP B SHOULD CHANGE"
+        },
+        {
+          "id": 131,
+          "caption": "ONLY GROUP B SHOULD CHANGE"
+        },
+        {
+          "id": 132,
+          "caption": "ONLY GROUP B SHOULD CHANGE"
+        }
+      ]
+    },
+    {
+      "label": "selection is independent",
+      "pass": true,
+      "details": {
+        "a": 1,
+        "b": 0
+      }
+    },
+    {
+      "label": "background included in frontend summary",
+      "pass": true,
+      "details": {
+        "caption": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections."
+      }
+    },
+    {
+      "label": "multiline text shown, edited and compiled without flattening",
+      "pass": true,
+      "details": {
+        "shown": "第一行\n第二行",
+        "stored": "第一行\n第二行\nTHIRD LINE!",
+        "compiled": "第一行\n第二行\nTHIRD LINE!"
+      }
+    },
+    {
+      "label": "real backend independently compiles both chains, background and multiline",
+      "pass": true,
+      "details": {
+        "a": {
+          "summary": {
+            "caption": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections."
+          },
+          "items": [
+            {
+              "label": "text",
+              "caption": "清晰的中文标题，两行排列。",
+              "bbox": [
+                -308,
+                -308,
+                0,
+                205
+              ],
+              "text": "第一行\n第二行\nTHIRD LINE!"
+            }
+          ],
+          "bbox_coord_space": "abs_centralized",
+          "bbox_format": "yxyx"
+        },
+        "b": {
+          "summary": {
+            "caption": "ONLY GROUP B SHOULD CHANGE\n原始背景描述。"
+          },
+          "items": [
+            {
+              "label": "text",
+              "caption": "清晰的中文标题，两行排列。",
+              "bbox": [
+                102,
+                51,
+                308,
+                461
+              ],
+              "text": "SECOND CHAIN"
+            }
+          ],
+          "bbox_coord_space": "abs_centralized",
+          "bbox_format": "yxyx"
+        }
+      }
+    },
+    {
+      "label": "save and reload preserve both chains and newlines",
+      "pass": true,
+      "details": {
+        "a": {
+          "schema": "moss-layout/v1",
+          "coordinate_system": "percent_xywh",
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          },
+          "global_prompt": "独立布局 A：文字海报。",
+          "elements": [
+            {
+              "name": "背景",
+              "tag": "固定",
+              "type": "background",
+              "box": [
+                0,
+                0,
+                100,
+                100
+              ],
+              "prompt": "FIX_BACKGROUND: rainy red city with neon reflections."
+            },
+            {
+              "name": "A 的文字",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                20,
+                20,
+                50,
+                30
+              ],
+              "prompt": "清晰的中文标题，两行排列。",
+              "text": "第一行\n第二行\nTHIRD LINE!"
+            }
+          ]
+        },
+        "b": {
+          "schema": "moss-layout/v1",
+          "coordinate_system": "percent_xywh",
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          },
+          "global_prompt": "ONLY GROUP B SHOULD CHANGE",
+          "elements": [
+            {
+              "name": "背景",
+              "tag": "固定",
+              "type": "background",
+              "box": [
+                0,
+                0,
+                100,
+                100
+              ],
+              "prompt": "原始背景描述。"
+            },
+            {
+              "name": "B 的文字",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                55,
+                60,
+                40,
+                20
+              ],
+              "prompt": "清晰的中文标题，两行排列。",
+              "text": "SECOND CHAIN"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "clear removes foreground and preserves descriptions and dimensions",
+      "pass": true,
+      "details": {
+        "schema": "moss-layout/v1",
+        "coordinate_system": "percent_xywh",
+        "canvas": {
+          "width": 1024,
+          "height": 1024
+        },
+        "global_prompt": "独立布局 A：文字海报。",
+        "elements": [
+          {
+            "name": "背景",
+            "tag": "固定",
+            "type": "background",
+            "box": [
+              0,
+              0,
+              100,
+              100
+            ],
+            "prompt": "FIX_BACKGROUND: rainy red city with neon reflections."
+          }
+        ]
+      }
+    },
+    {
+      "label": "background-only frontend output includes both descriptions",
+      "pass": true,
+      "details": {
+        "prompt": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections.",
+        "standard": "{\n  \"schema\": \"moss-layout/v1\",\n  \"coordinate_system\": \"percent_xywh\",\n  \"canvas\": {\n    \"width\": 1024,\n    \"height\": 1024\n  },\n  \"global_prompt\": \"独立布局 A：文字海报。\",\n  \"elements\": [\n    {\n      \"name\": \"背景\",\n      \"tag\": \"固定\",\n      \"type\": \"background\",\n      \"box\": [\n        0,\n        0,\n        100,\n        100\n      ],\n      \"prompt\": \"FIX_BACKGROUND: rainy red city with neon reflections.\"\n    }\n  ]\n}"
+      }
+    },
+    {
+      "label": "undo restores entire cleared layout",
+      "pass": true,
+      "details": {
+        "schema": "moss-layout/v1",
+        "coordinate_system": "percent_xywh",
+        "canvas": {
+          "width": 1024,
+          "height": 1024
+        },
+        "global_prompt": "独立布局 A：文字海报。",
+        "elements": [
+          {
+            "name": "背景",
+            "tag": "固定",
+            "type": "background",
+            "box": [
+              0,
+              0,
+              100,
+              100
+            ],
+            "prompt": "FIX_BACKGROUND: rainy red city with neon reflections."
+          },
+          {
+            "name": "A 的文字",
+            "tag": "文字",
+            "type": "text",
+            "box": [
+              20,
+              20,
+              50,
+              30
+            ],
+            "prompt": "清晰的中文标题，两行排列。",
+            "text": "第一行\n第二行\nTHIRD LINE!"
+          }
+        ]
+      }
+    },
+    {
+      "label": "redo clears only foreground",
+      "pass": true,
+      "details": {
+        "a": {
+          "schema": "moss-layout/v1",
+          "coordinate_system": "percent_xywh",
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          },
+          "global_prompt": "独立布局 A：文字海报。",
+          "elements": [
+            {
+              "name": "背景",
+              "tag": "固定",
+              "type": "background",
+              "box": [
+                0,
+                0,
+                100,
+                100
+              ],
+              "prompt": "FIX_BACKGROUND: rainy red city with neon reflections."
+            }
+          ]
+        },
+        "b": {
+          "schema": "moss-layout/v1",
+          "coordinate_system": "percent_xywh",
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          },
+          "global_prompt": "ONLY GROUP B SHOULD CHANGE",
+          "elements": [
+            {
+              "name": "背景",
+              "tag": "固定",
+              "type": "background",
+              "box": [
+                0,
+                0,
+                100,
+                100
+              ],
+              "prompt": "原始背景描述。"
+            },
+            {
+              "name": "B 的文字",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                55,
+                60,
+                40,
+                20
+              ],
+              "prompt": "清晰的中文标题，两行排列。",
+              "text": "SECOND CHAIN"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "real backend background-only output preserves descriptions",
+      "pass": true,
+      "details": {
+        "text": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections.",
+        "status": "success"
+      }
+    },
+    {
+      "label": "reverse node configuration order preserves both chains",
+      "pass": true,
+      "details": [
+        {
+          "id": 30,
+          "caption": "独立布局 A：文字海报。"
+        },
+        {
+          "id": 31,
+          "caption": "独立布局 A：文字海报。"
+        },
+        {
+          "id": 32,
+          "caption": "独立布局 A：文字海报。"
+        },
+        {
+          "id": 130,
+          "caption": "ONLY GROUP B SHOULD CHANGE"
+        },
+        {
+          "id": 131,
+          "caption": "ONLY GROUP B SHOULD CHANGE"
+        },
+        {
+          "id": 132,
+          "caption": "ONLY GROUP B SHOULD CHANGE"
+        }
+      ]
+    },
+    {
+      "label": "disconnected editor retains layout without modifying canvases",
+      "pass": true,
+      "details": {
+        "schema": "moss-layout/v1",
+        "coordinate_system": "percent_xywh",
+        "canvas": {
+          "width": 1024,
+          "height": 1024
+        },
+        "global_prompt": "DISCONNECTED EDITOR",
+        "elements": [
+          {
+            "name": "背景",
+            "tag": "固定",
+            "type": "background",
+            "box": [
+              0,
+              0,
+              100,
+              100
+            ],
+            "prompt": "FIX_BACKGROUND: rainy red city with neon reflections."
+          },
+          {
+            "name": "A 的文字",
+            "tag": "文字",
+            "type": "text",
+            "box": [
+              20,
+              20,
+              50,
+              30
+            ],
+            "prompt": "清晰的中文标题，两行排列。",
+            "text": "第一行\n第二行\nTHIRD LINE!"
+          }
+        ]
+      }
+    },
+    {
+      "label": "reconnected editor adopts destination canvas",
+      "pass": true,
+      "details": {
+        "editor": "ONLY GROUP B SHOULD CHANGE",
+        "b": "ONLY GROUP B SHOULD CHANGE"
+      }
+    },
+    {
+      "label": "rewired editor edits only destination canvas",
+      "pass": true,
+      "details": {
+        "a": "第一行\n第二行\nTHIRD LINE!",
+        "b": "EDITED THROUGH REWIRED B"
+      }
+    },
+    {
+      "label": "prompt follows upstream elements when direct layout absent",
+      "pass": true,
+      "details": {
+        "schema": "moss-layout/v1",
+        "coordinate_system": "percent_xywh",
+        "canvas": {
+          "width": 1024,
+          "height": 1024
+        },
+        "global_prompt": "ONLY GROUP B SHOULD CHANGE",
+        "elements": [
+          {
+            "name": "背景",
+            "tag": "固定",
+            "type": "background",
+            "box": [
+              0,
+              0,
+              100,
+              100
+            ],
+            "prompt": "原始背景描述。"
+          },
+          {
+            "name": "B 的文字",
+            "tag": "文字",
+            "type": "text",
+            "box": [
+              55,
+              60,
+              40,
+              20
+            ],
+            "prompt": "清晰的中文标题，两行排列。",
+            "text": "EDITED THROUGH REWIRED B"
+          }
+        ]
+      }
+    },
+    {
+      "label": "standard reroute preserves group ownership",
+      "pass": true,
+      "details": "ONLY GROUP B SHOULD CHANGE"
+    },
+    {
+      "label": "rewiring reroute refreshes downstream state and editor",
+      "pass": true,
+      "details": {
+        "savedEditor": "独立布局 A：文字海报。",
+        "savedPrompt": "独立布局 A：文字海报。",
+        "expected": "独立布局 A：文字海报。",
+        "graphHook": "function(...n){typeof e==`function`&&e.call(this,...n);for(let e of t)e.call(this,...n)}"
+      }
+    },
+    {
+      "label": "cloned canvas owns independent state",
+      "pass": true,
+      "details": {
+        "a": "独立布局 A：文字海报。",
+        "b": "ONLY GROUP B SHOULD CHANGE",
+        "clone": "CLONED CANVAS ONLY"
+      }
+    },
+    {
+      "label": "removing another canvas leaves chain B functional",
+      "pass": true,
+      "details": "B SURVIVES A REMOVAL"
+    },
+    {
+      "label": "live dimension updates stay within each chain",
+      "pass": true,
+      "details": [
+        {
+          "id": 30,
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          }
+        },
+        {
+          "id": 31,
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          }
+        },
+        {
+          "id": 32,
+          "canvas": {
+            "width": 1024,
+            "height": 1024
+          }
+        },
+        {
+          "id": 130,
+          "canvas": {
+            "width": 1344,
+            "height": 768
+          }
+        },
+        {
+          "id": 131,
+          "canvas": {
+            "width": 1344,
+            "height": 768
+          }
+        },
+        {
+          "id": 132,
+          "canvas": {
+            "width": 1344,
+            "height": 768
+          }
+        }
+      ]
+    },
+    {
+      "label": "actual painted canvas has square ratio",
+      "pass": true,
+      "details": {
+        "ratio": 1,
+        "width": 595,
+        "height": 881
+      }
+    },
+    {
+      "label": "immediate run and save use new dimensions before timer tick",
+      "pass": true,
+      "details": {
+        "api": {
+          "width": 640,
+          "height": 960
+        },
+        "saved": {
+          "width": 640,
+          "height": 960
+        },
+        "b": {
+          "width": 1344,
+          "height": 768
+        }
+      }
+    },
+    {
+      "label": "reload preserves two independent dimension sets",
+      "pass": true,
+      "details": [
+        {
+          "width": 640,
+          "height": 960
+        },
+        {
+          "width": 1344,
+          "height": 768
+        }
+      ]
+    },
+    {
+      "label": "40-event real pointer drag after resize has correct delta",
+      "pass": true,
+      "details": {
+        "actual": [
+          25,
+          27,
+          40,
+          30
+        ],
+        "expected": [
+          25,
+          27,
+          40,
+          30
+        ]
+      }
+    },
+    {
+      "label": "drag does not change second chain",
+      "pass": true,
+      "details": {
+        "name": "B 的文字",
+        "tag": "文字",
+        "type": "text",
+        "box": [
+          55,
+          60,
+          40,
+          20
+        ],
+        "prompt": "清晰的中文标题，两行排列。",
+        "text": "SECOND CHAIN"
+      }
+    },
+    {
+      "label": "drag undo remains functional",
+      "pass": true,
+      "details": [
+        20,
+        25,
+        40,
+        30
+      ]
+    },
+    {
+      "label": "drag redo remains functional",
+      "pass": true,
+      "details": [
+        25,
+        27,
+        40,
+        30
+      ]
+    },
+    {
+      "label": "backend bboxes match dragged A and landscape B",
+      "pass": true,
+      "details": {
+        "a": [
+          -236,
+          -256,
+          72,
+          154
+        ],
+        "b": [
+          76,
+          67,
+          231,
+          605
+        ]
+      }
+    },
+    {
+      "label": "dragged bbox persists across save and reload",
+      "pass": true,
+      "details": [
+        25,
+        27,
+        40,
+        30
+      ]
+    }
+  ],
+  "backend": [
+    {
+      "prompt_id": "36f762e6-f66e-4a1d-9da0-e497d11ea3df",
+      "status": "success",
+      "a": {
+        "summary": {
+          "caption": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections."
+        },
+        "items": [
+          {
+            "label": "text",
+            "caption": "清晰的中文标题，两行排列。",
+            "bbox": [
+              -308,
+              -308,
+              0,
+              205
+            ],
+            "text": "第一行\n第二行\nTHIRD LINE!"
+          }
+        ],
+        "bbox_coord_space": "abs_centralized",
+        "bbox_format": "yxyx"
+      },
+      "b": {
+        "summary": {
+          "caption": "ONLY GROUP B SHOULD CHANGE\n原始背景描述。"
+        },
+        "items": [
+          {
+            "label": "text",
+            "caption": "清晰的中文标题，两行排列。",
+            "bbox": [
+              102,
+              51,
+              308,
+              461
+            ],
+            "text": "SECOND CHAIN"
+          }
+        ],
+        "bbox_coord_space": "abs_centralized",
+        "bbox_format": "yxyx"
+      }
+    },
+    {
+      "prompt_id": "4263c82b-f6f3-45b2-bba2-21c42e84eae5",
+      "status": "success",
+      "text": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections."
+    },
+    {
+      "prompt_id": "8a0f065e-a309-4ba1-83e5-cd3488e6fc4b",
+      "status": "success",
+      "a": {
+        "summary": {
+          "caption": "独立布局 A：文字海报。\nFIX_BACKGROUND: rainy red city with neon reflections."
+        },
+        "items": [
+          {
+            "label": "text",
+            "caption": "清晰的中文标题，两行排列。",
+            "bbox": [
+              -236,
+              -256,
+              72,
+              154
+            ],
+            "text": "第一行\n第二行\nTHIRD LINE!"
+          }
+        ],
+        "bbox_coord_space": "abs_centralized",
+        "bbox_format": "yxyx"
+      },
+      "b": {
+        "summary": {
+          "caption": "ONLY GROUP B SHOULD CHANGE\n原始背景描述。"
+        },
+        "items": [
+          {
+            "label": "text",
+            "caption": "清晰的中文标题，两行排列。",
+            "bbox": [
+              76,
+              67,
+              231,
+              605
+            ],
+            "text": "SECOND CHAIN"
+          }
+        ],
+        "bbox_coord_space": "abs_centralized",
+        "bbox_format": "yxyx"
+      }
+    }
+  ],
+  "source_sha256": {
+    "__init__.py": "bdf9f67c83cb46b063c0aa321c821b9f6d23cbd60644c3e200c8cb8327a44969",
+    "nodes.py": "c6707bf0da8156779597082e6f19584b6784e2d6c70abd4a6168490dabaecda7",
+    "layout_schema.py": "13fcec896c4ad0e98034ae14917409347ec962c672813452f059888c0d751317",
+    "web/moss_common.js": "e4a91ad34ba8f769f90430c673274264fb3c85e1163b3f63aec95eb77289c3ac",
+    "web/moss_canvas.js": "69e524fbdb3a484201349466497e85a57935b58e535924d7ba3751e2e83a8704",
+    "web/moss_elements.js": "d914ef3f027146813a57c27e351b4b75991bf34bf546c936d462c411932a7aa9",
+    "web/moss_prompt.js": "50ee732df374af701ae07e1080c1360bf5134b5b63fd4d715665290881b84d5d"
+  },
+  "environment": {
+    "date": "2026-10-20",
+    "ComfyUI": "0.41.0",
+    "frontend": "1.55.18",
+    "execution": "isolated CPU backend, real Chrome UI",
+    "model_inference": false
+  },
+  "source_comparison": "Runtime source matches the tested installed version after CRLF-to-LF normalization."
+}
