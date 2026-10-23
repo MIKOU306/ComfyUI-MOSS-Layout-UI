@@ -64,7 +64,7 @@ export function mountPrompt(node) {
     class: "ml-textarea mls-editor mls-standard ml-scroll",
     rows: "7",
     spellcheck: "false",
-    placeholder: "粘贴标准布局 JSON，然后点击「导入新布局」或「合并并保留修改」。",
+    placeholder: "粘贴布局、官方草稿或模型的布局提示词，然后点击「导入新布局」或「合并并保留修改」。",
   });
   const statusEl = h("p", { class: "mls-status" });
   const metaInput = h("input", { class: "ml-input mls-meta-input", placeholder: "媒介 / 体裁，如 poster, photography" });
@@ -151,11 +151,11 @@ export function mountPrompt(node) {
   }
 
   function invalidBuffer() {
-    alert("无法解析布局。请使用 moss-layout/v1、percent_xywh 和 elements 数组；模型的 summary/items 输出不能作为画布布局导入。");
+    alert("无法解析布局。可粘贴本插件的 moss-layout 布局、官方的 width/height + abs/xyxy 草稿，或模型用的 abs_centralized/yxyx 布局提示词（按当前画布尺寸换算）。");
   }
 
   function importLayout() {
-    const parsed = parseLayout(standardArea.value);
+    const parsed = parseLayout(standardArea.value, layoutStore.get().canvas);
     if (!parsed) {
       invalidBuffer();
       return;
@@ -164,7 +164,7 @@ export function mountPrompt(node) {
   }
 
   function mergeLayout() {
-    const raw = readRawLayout(standardArea.value);
+    const raw = readRawLayout(standardArea.value, layoutStore.get().canvas);
     if (!raw) {
       invalidBuffer();
       return;
@@ -172,6 +172,9 @@ export function mountPrompt(node) {
     const layout = JSON.parse(serializePretty(layoutStore.get()));
     if (raw.canvas && typeof raw.canvas === "object") layout.canvas = {...layout.canvas, ...raw.canvas};
     if (typeof raw.global_prompt === "string") layout.global_prompt = raw.global_prompt;
+    for (const key of ["meta", "palette", "canvas_kind"]) {
+      if (raw[key] !== undefined) layout[key] = raw[key];
+    }
     let index = 1;
     for (const source of raw.elements) {
       if (!source || typeof source !== "object" || Array.isArray(source)) continue;
@@ -179,7 +182,7 @@ export function mountPrompt(node) {
       const at = background ? 0 : index++;
       const target = layout.elements[at];
       if (!target) { layout.elements.push(source); continue; }
-      for (const key of ["name", "tag", "type", "box", "prompt", "text", "locked", "group_id", "typography"]) {
+      for (const key of ["name", "tag", "type", "box", "prompt", "text", "locked", "group_id", "typography", "tags", "palette"]) {
         if (Object.hasOwn(source, key)) target[key] = source[key];
       }
     }
@@ -279,7 +282,7 @@ export function mountPrompt(node) {
       h("div", { class: "mls-actions" }, [importButton, mergeButton, exportButton, draftButton]),
       h("p", {
         class: "mls-note",
-        text: "导入只在点击按钮时执行。可粘贴 moss-layout 布局，或官方的 width/height + abs/xyxy 草稿。运行和导出始终读取当前画布。",
+        text: "导入只在点击按钮时执行。支持三种输入：本插件的 moss-layout 布局、官方 width/height + abs/xyxy 草稿、模型用的 abs_centralized/yxyx 布局提示词（无宽高，按当前画布尺寸换算）。运行和导出始终读取当前画布。",
       }),
       statusEl,
       checks,

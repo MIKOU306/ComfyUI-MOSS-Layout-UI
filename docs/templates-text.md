@@ -30,7 +30,7 @@
 
 尺寸检查只追踪当前提示词下游采样器的潜空间来源，不检查无关工作流。可直接读取宽高控件与 PrimitiveInt / PrimitiveNode / Reroute 链；动态计算、图像编码或复杂潜空间变换无法保证静态推断正确，会提示人工核对。诊断提供提醒，不会自动改采样器或阻止执行。
 
-导入只接受 moss-layout/v1 的 percent_xywh 元素布局，或未标版本的兼容 elements 数组。最终给模型的 summary/items JSON 不含编辑信息，不能反向当成此格式导入。
+导入接受三种输入：本插件的 moss-layout/v1 percent_xywh 布局；官方 `width/height + bbox_coord_space:"abs" + bbox_format:"xyxy"` 草稿；以及模型用的 `abs_centralized` / `yxyx` 布局提示词。最后一种没有宽高信息，会按当前画布尺寸换算——如果它是为别的尺寸生成的，坐标会被重新解释。
 
 ## 保存格式
 

@@ -31,6 +31,16 @@ def _layout_from(*raw_values, width=layout_schema.DEFAULT_WIDTH, height=layout_s
     return layout_schema.default_layout(width, height)
 
 
+def _size_kwargs(state):
+    """Canvas size saved with the workflow; a compiled prompt has no size of its own."""
+    if not isinstance(state, str) or not state.strip():
+        return {}
+    try:
+        return dict(layout_schema.parse_layout(state)["canvas"])
+    except ValueError:
+        return {}
+
+
 class MOSSLayoutCanvas(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -78,7 +88,7 @@ class MOSSLayoutElements(io.ComfyNode):
 
     @classmethod
     def execute(cls, layout, state):
-        draft = _layout_from(layout, state)
+        draft = _layout_from(layout, state, **_size_kwargs(state))
         return io.NodeOutput(layout_schema.elements_json(draft),
                              layout_schema.character_boxes_json(draft))
 
@@ -106,7 +116,7 @@ class MOSSLayoutStandardPrompt(io.ComfyNode):
 
     @classmethod
     def execute(cls, layout, elements, character_boxes, state):
-        draft = _layout_from(layout, state)
+        draft = _layout_from(layout, state, **_size_kwargs(state))
         if isinstance(elements, str) and elements.strip():
             value = json.loads(elements)
             if not isinstance(value, list):

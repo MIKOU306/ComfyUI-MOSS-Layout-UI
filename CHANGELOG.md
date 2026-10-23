@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1 · 2026-10-23
+
+- 可以直接导入官方指南里那种**模型用布局提示词**（`bbox_coord_space:"abs_centralized"` + `bbox_format:"yxyx"`）：它不带宽高，按当前画布尺寸反算成百分比；`summary.caption / meta / canvas / palette` 与元素的 `tags / palette`、文字内容一并还原。
+- 导入面板同时支持三种输入：本插件的 moss-layout、官方 `abs/xyxy` 草稿、模型用 `abs_centralized/yxyx` 提示词；「合并并保留修改」也会带上 meta / 调色板 / 画面类型。
+
 ## 1.3.0 · 2026-10-23
 
 - 支持官方可选字段：`summary.meta`、`summary.canvas`（单图 / 多格 / 拼贴）、`summary.palette`，以及每个元素的 `tags`、`palette`。标准提示词节点新增三项输入，元素管理节点新增两行输入，全部直接编译进模型提示词。

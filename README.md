@@ -38,6 +38,10 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git comfyui-moss-la
 
 **要求**：ComfyUI 提供新版节点 API（`comfy_api.latest`）。开发与验证环境 = ComfyUI 0.41.0 / 前端 1.55.18 / Python 3.12。
 
+### 1.3.1 直接导入官方布局提示词
+
+- 粘贴官方指南里那种模型用的布局提示词（`abs_centralized` + `yxyx`）就能导入：它不带宽高，按当前画布尺寸反算百分比，`summary` 与元素的 `tags / palette`、文字内容一并还原。注意它若原本是为别的画布尺寸生成的，坐标会被重新解释。
+
 ### 1.3.0 官方可选字段与坐标精度
 
 - 补齐官方可选字段：`summary.meta` / `summary.canvas` / `summary.palette` 与元素 `tags` / `palette`，全部直接编译进模型提示词（不填就不下发）。

@@ -236,44 +236,83 @@ def _is_official_draft(value):
             and value.get("bbox_coord_space") == "abs" and value.get("bbox_format") == "xyxy")
 
 
+def _is_compiled_prompt(value):
+    """The model-facing layout prompt: centre-origin pixels, yxyx."""
+    return (isinstance(value, dict) and isinstance(value.get("items"), list)
+            and value.get("bbox_coord_space") == "abs_centralized" and value.get("bbox_format") == "yxyx")
+
+
+def _clamped_size(width, height):
+    return (int(_clamp(_number(width, DEFAULT_WIDTH) or DEFAULT_WIDTH, MIN_CANVAS, MAX_CANVAS)),
+            int(_clamp(_number(height, DEFAULT_HEIGHT) or DEFAULT_HEIGHT, MIN_CANVAS, MAX_CANVAS)))
+
+
+def _element_from_item(item, box):
+    label = item.get("label") if item.get("label") in TAG_FOR_TYPE else "object"
+    element = {
+        "tag": TAG_FOR_TYPE[label],
+        "type": label,
+        "box": box,
+        "prompt": item.get("caption") if isinstance(item.get("caption"), str) else "",
+    }
+    if label == "text":
+        element["text"] = item.get("text") if isinstance(item.get("text"), str) else ""
+    if isinstance(item.get("tags"), list):
+        element["tags"] = _string_list(item["tags"])
+    if isinstance(item.get("palette"), list):
+        element["palette"] = _string_list(item["palette"])
+    return element
+
+
+def _summary_fields(summary):
+    return {
+        "global_prompt": summary.get("caption") if isinstance(summary.get("caption"), str) else "",
+        "meta": _string_list(summary.get("meta")),
+        "canvas_kind": summary.get("canvas") if summary.get("canvas") in CANVAS_KINDS else "",
+        "palette": _string_list(summary.get("palette")),
+    }
+
+
 def official_draft_to_layout(draft):
     """Convert an official abs/xyxy draft into the percent layout this editor stores."""
-    width = int(_clamp(_number(draft.get("width"), DEFAULT_WIDTH) or DEFAULT_WIDTH, MIN_CANVAS, MAX_CANVAS))
-    height = int(_clamp(_number(draft.get("height"), DEFAULT_HEIGHT) or DEFAULT_HEIGHT, MIN_CANVAS, MAX_CANVAS))
+    width, height = _clamped_size(draft.get("width"), draft.get("height"))
     summary = draft.get("summary") if isinstance(draft.get("summary"), dict) else {}
     elements = [_background()]
     for item in draft["items"]:
         if not isinstance(item, dict):
             continue
-        label = item.get("label") if item.get("label") in TAG_FOR_TYPE else "object"
         box = list(item.get("bbox") or [])[:4]
         while len(box) < 4:
             box.append(0)
         x1, y1, x2, y2 = (_number(value) for value in box)
-        element = {
-            "tag": TAG_FOR_TYPE[label],
-            "type": label,
-            "box": [x1 / width * 100, y1 / height * 100, (x2 - x1) / width * 100, (y2 - y1) / height * 100],
-            "prompt": item.get("caption") if isinstance(item.get("caption"), str) else "",
-        }
-        if label == "text":
-            element["text"] = item.get("text") if isinstance(item.get("text"), str) else ""
-        if isinstance(item.get("tags"), list):
-            element["tags"] = _string_list(item["tags"])
-        if isinstance(item.get("palette"), list):
-            element["palette"] = _string_list(item["palette"])
-        elements.append(element)
-    return {
-        "canvas": {"width": width, "height": height},
-        "global_prompt": summary.get("caption") if isinstance(summary.get("caption"), str) else "",
-        "meta": _string_list(summary.get("meta")),
-        "canvas_kind": summary.get("canvas") if summary.get("canvas") in CANVAS_KINDS else "",
-        "palette": _string_list(summary.get("palette")),
-        "elements": elements,
-    }
+        elements.append(_element_from_item(item, [
+            x1 / width * 100, y1 / height * 100, (x2 - x1) / width * 100, (y2 - y1) / height * 100]))
+    return {"canvas": {"width": width, "height": height}, **_summary_fields(summary), "elements": elements}
 
 
-def _layout_value(value):
+def compiled_prompt_to_layout(prompt, width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT):
+    """Convert a centre-origin layout prompt back into percent boxes on this canvas."""
+    width, height = _clamped_size(width, height)
+    half_width, half_height = width / 2, height / 2
+    summary = prompt.get("summary") if isinstance(prompt.get("summary"), dict) else {}
+    elements = [_background()]
+    for item in prompt["items"]:
+        if not isinstance(item, dict):
+            continue
+        box = list(item.get("bbox") or [])[:4]
+        while len(box) < 4:
+            box.append(0)
+        y_min, x_min, y_max, x_max = (_number(value) for value in box)
+        elements.append(_element_from_item(item, [
+            (x_min + half_width) / width * 100,
+            (y_min + half_height) / height * 100,
+            (x_max - x_min) / width * 100,
+            (y_max - y_min) / height * 100,
+        ]))
+    return {"canvas": {"width": width, "height": height}, **_summary_fields(summary), "elements": elements}
+
+
+def _layout_value(value, width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT):
     if isinstance(value, list):
         return {"elements": value}
     if isinstance(value, dict) and isinstance(value.get("elements"), list):
@@ -282,13 +321,20 @@ def _layout_value(value):
         return value
     if _is_official_draft(value):
         return official_draft_to_layout(value)
+    if _is_compiled_prompt(value):
+        return compiled_prompt_to_layout(value, width, height)
     return None
 
 
 def parse_layout(raw, width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT):
-    """Read a draft from text or mapping; an empty input yields a fresh layout."""
+    """Read a draft from text or mapping; an empty input yields a fresh layout.
+
+    Accepts this editor's percent layout, the official abs/xyxy draft, and the
+    model-facing abs_centralized/yxyx prompt, which is mapped onto ``width`` and
+    ``height`` because that form does not carry a canvas size.
+    """
     if isinstance(raw, (dict, list)):
-        value = _layout_value(raw)
+        value = _layout_value(raw, width, height)
         if value is None:
             raise ValueError("布局必须包含 elements 数组。")
         return normalize_layout(value, width, height)
@@ -300,7 +346,7 @@ def parse_layout(raw, width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT):
             value = json.loads(candidate)
         except ValueError:
             continue
-        layout = _layout_value(value)
+        layout = _layout_value(value, width, height)
         if layout:
             return normalize_layout(layout, width, height)
     raise ValueError("layout is not a moss-layout JSON object")

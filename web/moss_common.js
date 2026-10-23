@@ -374,22 +374,22 @@ export function isOfficialDraft(value) {
     && value.bbox_coord_space === "abs" && value.bbox_format === "xyxy";
 }
 
-// Convert the official abs/xyxy draft into the percent layout this editor stores.
-export function layoutFromOfficialDraft(draft) {
-  const size = canvasSize({ width: draft.width, height: draft.height });
-  const summary = draft.summary && typeof draft.summary === "object" ? draft.summary : {};
-  const elements = draft.items
+export function isCompiledPrompt(value) {
+  return Boolean(value) && typeof value === "object" && Array.isArray(value.items)
+    && value.bbox_coord_space === "abs_centralized" && value.bbox_format === "yxyx";
+}
+
+function elementsFromItems(items, toBox) {
+  return items
     .filter((item) => item && typeof item === "object" && !Array.isArray(item))
     .map((item, index) => {
       const label = LABELS.includes(item.label) ? item.label : "object";
-      const box = Array.isArray(item.bbox) ? item.bbox.map((value) => finiteNumber(value, 0)) : [];
-      const [x1 = 0, y1 = 0, x2 = 0, y2 = 0] = box;
+      const raw = Array.isArray(item.bbox) ? item.bbox.map((value) => finiteNumber(value, 0)) : [];
       const element = {
         name: `元素 ${String(index + 1).padStart(2, "0")}`,
         tag: label === "character" ? "人物" : label === "text" ? "文字" : "主体",
         type: label,
-        box: [x1 / size.width * 100, y1 / size.height * 100,
-          (x2 - x1) / size.width * 100, (y2 - y1) / size.height * 100],
+        box: toBox([raw[0] ?? 0, raw[1] ?? 0, raw[2] ?? 0, raw[3] ?? 0]),
         prompt: typeof item.caption === "string" ? item.caption : "",
       };
       if (label === "text") element.text = typeof item.text === "string" ? item.text : "";
@@ -397,27 +397,51 @@ export function layoutFromOfficialDraft(draft) {
       if (Array.isArray(item.palette)) element.palette = stringList(item.palette);
       return element;
     });
+}
+
+function summaryFields(summary, canvas) {
+  const source = summary && typeof summary === "object" ? summary : {};
   return {
-    canvas: size,
-    global_prompt: typeof summary.caption === "string" ? summary.caption : "",
-    meta: stringList(summary.meta),
-    canvas_kind: CANVAS_KINDS.some((kind) => kind.id === summary.canvas) ? summary.canvas : "",
-    palette: stringList(summary.palette),
-    elements: [backgroundElement(), ...elements],
+    canvas,
+    global_prompt: typeof source.caption === "string" ? source.caption : "",
+    meta: stringList(source.meta),
+    canvas_kind: CANVAS_KINDS.some((kind) => kind.id === source.canvas) ? source.canvas : "",
+    palette: stringList(source.palette),
   };
 }
 
-export function candidateLayout(value) {
+// Convert the official abs/xyxy draft into the percent layout this editor stores.
+export function layoutFromOfficialDraft(draft) {
+  const size = canvasSize({ width: draft.width, height: draft.height });
+  const elements = elementsFromItems(draft.items, ([x1, y1, x2, y2]) => [
+    x1 / size.width * 100, y1 / size.height * 100,
+    (x2 - x1) / size.width * 100, (y2 - y1) / size.height * 100]);
+  return { ...summaryFields(draft.summary, size), elements: [backgroundElement(), ...elements] };
+}
+
+// The compiled prompt carries no canvas size, so it is mapped onto the current one.
+export function layoutFromCompiledPrompt(prompt, size) {
+  const canvas = canvasSize(size);
+  const halfWidth = canvas.width / 2;
+  const halfHeight = canvas.height / 2;
+  const elements = elementsFromItems(prompt.items, ([yMin, xMin, yMax, xMax]) => [
+    (xMin + halfWidth) / canvas.width * 100, (yMin + halfHeight) / canvas.height * 100,
+    (xMax - xMin) / canvas.width * 100, (yMax - yMin) / canvas.height * 100]);
+  return { ...summaryFields(prompt.summary, canvas), elements: [backgroundElement(), ...elements] };
+}
+
+export function candidateLayout(value, size) {
   if (Array.isArray(value)) return { elements: value };
   if (!value || typeof value !== "object") return null;
   if (Array.isArray(value.elements) && (!Object.hasOwn(value, "schema") || value.schema === SCHEMA)
       && (!Object.hasOwn(value, "coordinate_system") || value.coordinate_system === COORDINATE_SYSTEM)) return value;
   if (isOfficialDraft(value)) return layoutFromOfficialDraft(value);
+  if (isCompiledPrompt(value)) return layoutFromCompiledPrompt(value, size);
   return null;
 }
 
-export function readRawLayout(raw) {
-  if (raw && typeof raw === "object") return candidateLayout(raw);
+export function readRawLayout(raw, size) {
+  if (raw && typeof raw === "object") return candidateLayout(raw, size);
   if (typeof raw !== "string" || !raw.trim()) return null;
   const text = raw.trim();
   const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -425,13 +449,15 @@ export function readRawLayout(raw) {
   for (const candidateText of candidates()) {
     let value;
     try { value = JSON.parse(candidateText); } catch { continue; }
-    if (Array.isArray(value) || Array.isArray(value?.elements) || isOfficialDraft(value)) return candidateLayout(value);
+    if (Array.isArray(value) || Array.isArray(value?.elements) || isOfficialDraft(value) || isCompiledPrompt(value)) {
+      return candidateLayout(value, size);
+    }
   }
   return null;
 }
 
-export function parseLayout(raw) {
-  const candidate = readRawLayout(raw);
+export function parseLayout(raw, size) {
+  const candidate = readRawLayout(raw, size);
   return candidate ? normalizeLayout(candidate) : null;
 }
 
@@ -744,7 +770,8 @@ export function getLayoutStore(node) {
       return layout;
     },
     importLayout(next, origin) {
-      const layout = parseLayout(next);
+      // The compiled prompt has no canvas size, so it maps onto the current one.
+      const layout = parseLayout(next, current().layout.canvas);
       if (!layout) throw new Error("无法解析布局：需要 moss-layout/v1 的 elements 数组和 percent_xywh 坐标。");
       const canvas = upstreamCanvas(node);
       canvas?.__mossCanvasUI?.syncSize();
