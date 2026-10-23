@@ -1,6 +1,8 @@
 // Shared schema, store and look for the three MOSS layout poster nodes.
 // Plain ES module: no ComfyUI imports, so the same file also runs in the
 // static harness pages under tools/moss-layout-ui/harness/.
+import { elementIndices } from "./moss_edit.js";
+import { normalizeTypography, textCaption } from "./moss_text.js";
 
 export const SCHEMA = "moss-layout/v1";
 export const COORDINATE_SYSTEM = "percent_xywh";
@@ -89,7 +91,30 @@ const BASE_CSS = `
 `;
 
 const BASE_STYLE_ID = "moss-layout-common-style";
-const HIDDEN_WIDGETS = new Set(["state", "layout", "elements", "character_boxes"]);
+// The saved blob is never edited by hand, so it stays off the canvas entirely.
+const HIDDEN_WIDGETS = new Set(["state"]);
+// These three carry links between the nodes: their row has to stay on the canvas
+// or the input socket disappears with it, so the row is kept and flattened.
+const LINKED_WIDGETS = new Set(["layout", "elements", "character_boxes"]);
+const LAYOUT_OUTPUTS = new Set(["layout", "standard_prompt", "elements", "character_boxes"]);
+const LINK_ROW_HEIGHT = 22;
+
+// Hiding a widget removes its whole row, and the input socket goes with it.
+// Keep a narrow row that shows the connection state instead of the JSON payload.
+function compactLinkedWidget(widget) {
+  widget.hidden = false;
+  widget.computeSize = () => [0, LINK_ROW_HEIGHT];
+  widget.draw = function (ctx, node, width, y, height) {
+    const slot = node.inputs?.findIndex((input) => input.widget?.name === widget.name) ?? -1;
+    const linked = slot >= 0 && node.inputs[slot].link != null;
+    ctx.save();
+    ctx.font = "12px sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = linked ? "#9fd3ff" : "#8b93a1";
+    ctx.fillText(`${widget.label ?? widget.name} · ${linked ? "已连线" : "未连线"}`, 15, y + height / 2);
+    ctx.restore();
+  };
+}
 
 export function injectStyle(id, css) {
   if (document.getElementById(id)) return;
@@ -183,18 +208,25 @@ export function round1(value) {
 }
 
 export function clampBox(box) {
-  const values = Array.isArray(box) ? box.map(Number) : [];
+  const values = Array.isArray(box) ? box.slice(0, 4) : [];
   while (values.length < 4) values.push(0);
-  const x = clamp(Number.isFinite(values[0]) ? values[0] : 0, 0, 100);
-  const y = clamp(Number.isFinite(values[1]) ? values[1] : 0, 0, 100);
-  const width = clamp(Number.isFinite(values[2]) ? values[2] : 1, 0.1, 100 - x);
-  const height = clamp(Number.isFinite(values[3]) ? values[3] : 1, 0.1, 100 - y);
+  const x = round1(clamp(finiteNumber(values[0], 0), 0, 99.9));
+  const y = round1(clamp(finiteNumber(values[1], 0), 0, 99.9));
+  const width = clamp(finiteNumber(values[2], 1), 0.1, 100 - x);
+  const height = clamp(finiteNumber(values[3], 1), 0.1, 100 - y);
   return [round1(x), round1(y), round1(width), round1(height)];
 }
 
+function finiteNumber(value, fallback) {
+  if (!["number", "string"].includes(typeof value) || (typeof value === "string" && !value.trim())) return fallback;
+  if (typeof value === "string" && !/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/.test(value.trim())) return fallback;
+  const result = Number(value);
+  return Number.isFinite(result) ? result : fallback;
+}
+
 function canvasSize(canvas) {
-  const width = clamp(Math.round(Number(canvas?.width) || DEFAULT_WIDTH), MIN_CANVAS, MAX_CANVAS);
-  const height = clamp(Math.round(Number(canvas?.height) || DEFAULT_HEIGHT), MIN_CANVAS, MAX_CANVAS);
+  const width = clamp(Math.round(finiteNumber(canvas?.width, DEFAULT_WIDTH) || DEFAULT_WIDTH), MIN_CANVAS, MAX_CANVAS);
+  const height = clamp(Math.round(finiteNumber(canvas?.height, DEFAULT_HEIGHT) || DEFAULT_HEIGHT), MIN_CANVAS, MAX_CANVAS);
   return { width, height };
 }
 
@@ -223,7 +255,6 @@ function normalizeElement(raw, index) {
   const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const tag = TAG_IDS.includes(source.tag) ? source.tag : "主体";
   let type = TYPE_IDS.includes(source.type) ? source.type : TAG_TYPE[tag] ?? "object";
-  if (type === "background" && index > 0) type = "object";
   const name = typeof source.name === "string" && source.name.trim()
     ? source.name.trim()
     : `元素 ${String(index + 1).padStart(2, "0")}`;
@@ -234,7 +265,15 @@ function normalizeElement(raw, index) {
     box: type === "background" ? [0, 0, 100, 100] : clampBox(source.box),
     prompt: typeof source.prompt === "string" ? source.prompt : "",
   };
-  if (type === "text") element.text = typeof source.text === "string" ? source.text : "";
+  if (type === "text") {
+    element.text = typeof source.text === "string" ? source.text : "";
+    const typography = normalizeTypography(source.typography);
+    if (typography) element.typography = typography;
+  }
+  if (type !== "background") {
+    if (source.locked === true) element.locked = true;
+    if (typeof source.group_id === "string" && source.group_id.trim()) element.group_id = source.group_id.trim();
+  }
   return element;
 }
 
@@ -267,8 +306,7 @@ export function cloneLayout(layout) {
   return JSON.parse(JSON.stringify(layout));
 }
 
-function jsonObjects(text) {
-  const found = [];
+function* jsonObjects(text) {
   for (let start = 0; start < text.length; start += 1) {
     if (text[start] !== "{") continue;
     let depth = 0;
@@ -287,43 +325,40 @@ function jsonObjects(text) {
       else if (char === "}") {
         depth -= 1;
         if (depth === 0) {
-          found.push(text.slice(start, index + 1));
+          yield text.slice(start, index + 1);
           break;
         }
       }
     }
   }
-  return found;
 }
 
-function candidateLayout(value) {
+export function candidateLayout(value) {
   if (Array.isArray(value)) return { elements: value };
   if (!value || typeof value !== "object") return null;
-  if (Array.isArray(value.elements)) return value;
+  if (Array.isArray(value.elements) && (!Object.hasOwn(value, "schema") || value.schema === SCHEMA)
+      && (!Object.hasOwn(value, "coordinate_system") || value.coordinate_system === COORDINATE_SYSTEM)) return value;
   if (Array.isArray(value.items)) return null;
   return null;
 }
 
-export function parseLayout(raw) {
-  if (raw && typeof raw === "object") {
-    const candidate = candidateLayout(raw);
-    return candidate ? normalizeLayout(candidate) : null;
-  }
-  if (typeof raw !== "string") return null;
+export function readRawLayout(raw) {
+  if (raw && typeof raw === "object") return candidateLayout(raw);
+  if (typeof raw !== "string" || !raw.trim()) return null;
   const text = raw.trim();
-  if (!text) return null;
-  const candidates = [text, ...jsonObjects(text)];
-  for (const candidateText of candidates) {
+  const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const candidates = function* () { yield text; yield unfenced; yield* jsonObjects(text); };
+  for (const candidateText of candidates()) {
     let value;
-    try {
-      value = JSON.parse(candidateText);
-    } catch (error) {
-      continue;
-    }
-    const candidate = candidateLayout(value);
-    if (candidate) return normalizeLayout(candidate);
+    try { value = JSON.parse(candidateText); } catch { continue; }
+    if (Array.isArray(value) || Array.isArray(value?.elements)) return candidateLayout(value);
   }
   return null;
+}
+
+export function parseLayout(raw) {
+  const candidate = readRawLayout(raw);
+  return candidate ? normalizeLayout(candidate) : null;
 }
 
 export function serializeLayout(layout) {
@@ -334,18 +369,7 @@ export function serializePretty(layout) {
   return JSON.stringify(layout, null, 2);
 }
 
-export function elementsJson(layout) {
-  return JSON.stringify(layout.elements);
-}
-
-export function characterBoxesJson(layout) {
-  const boxes = layout.elements
-    .filter((element) => element.type === "character")
-    .map((element) => ({ name: element.name, box: element.box }));
-  return JSON.stringify(boxes);
-}
-
-function compiledItem(element, width, height) {
+function compiledItem(element, width, height, character = false) {
   const [left, top, boxWidth, boxHeight] = element.box;
   const x1 = (left / 100) * width;
   const y1 = (top / 100) * height;
@@ -355,8 +379,8 @@ function compiledItem(element, width, height) {
   const halfHeight = Math.floor(height / 2);
   const hasText = element.type === "text" && (element.text ?? "").trim();
   const item = {
-    label: hasText ? "text" : element.type === "character" ? "character" : "object",
-    caption: element.prompt ?? "",
+    label: hasText ? "text" : character || element.type === "character" ? "character" : "object",
+    caption: textCaption(element),
     bbox: [
       Math.floor(y1) - halfHeight,
       Math.floor(x1) - halfWidth,
@@ -368,17 +392,17 @@ function compiledItem(element, width, height) {
   return item;
 }
 
-export function compilePrompt(layout) {
+export function compilePrompt(layout, characters = []) {
   const normalized = normalizeLayout(layout);
   const { width, height } = normalized.canvas;
-  const foreground = normalized.elements.filter((element) => element.type !== "background");
+  const foreground = normalized.elements.filter(element => element.type !== "background" && (element.type !== "text" || element.text.trim()));
   const background = normalized.elements[0].prompt.trim();
   const caption = [...new Set([normalized.global_prompt.trim(), background].filter(Boolean))].join("\n");
   let prompt = caption;
   if (foreground.length) {
     prompt = JSON.stringify({
       summary: { caption },
-      items: foreground.map((element) => compiledItem(element, width, height)),
+      items: foreground.map((element, index) => compiledItem(element, width, height, characters.includes(index + 1))),
       bbox_coord_space: "abs_centralized",
       bbox_format: "yxyx",
     });
@@ -419,7 +443,7 @@ function defaultSize(node) {
   });
 }
 
-function upstreamCanvas(node, seen = new Set()) {
+export function upstreamCanvas(node, seen = new Set()) {
   if (!node || seen.has(node)) return null;
   seen.add(node);
   const type = node.comfyClass ?? node.type;
@@ -429,7 +453,11 @@ function upstreamCanvas(node, seen = new Set()) {
   for (const name of names) {
     const slot = node.inputs?.findIndex((input) => input.name === name) ?? -1;
     if (slot < 0 || node.inputs[slot].link == null) continue;
-    const canvas = upstreamCanvas(node.getInputNode?.(slot), seen);
+    const source = node.getInputNode?.(slot);
+    const sourceName = source?.outputs?.[node.getInputLink?.(slot)?.origin_slot ?? -1]?.name;
+    // A link carrying something else (a compiled prompt, an image) is not a canvas.
+    if (sourceName && !LAYOUT_OUTPUTS.has(sourceName)) continue;
+    const canvas = upstreamCanvas(source, seen);
     if (canvas) return canvas;
   }
   return null;
@@ -441,7 +469,7 @@ function groupFor(entry) {
   if (!group) {
     const saved = parseLayout(owner.widgets?.find((widget) => widget.name === "state")?.value);
     const size = defaultSize(owner);
-    group = { layout: saved ?? createLayout(size.width, size.height), seeded: Boolean(saved), selection: -1 };
+    group = { layout: saved ?? createLayout(size.width, size.height), seeded: Boolean(saved), selection: -1, selections: [] };
     groups.set(owner, group);
   }
   // Disconnecting an editor preserves its last visible layout as a standalone
@@ -466,8 +494,11 @@ function callListener(listener, ...args) {
 }
 
 function notify(group, origin, selectionOnly = false) {
-  for (const entry of bindings.values()) {
-    if (groupFor(entry) !== group) continue;
+  const entries = [];
+  for (const entry of bindings.values()) if (groupFor(entry) === group) entries.push(entry);
+  const edited = !selectionOnly && origin !== "configure" && origin !== "init";
+  if (edited && entries.length) beginChange(entries[0].node.graph);
+  for (const entry of entries) {
     if (!selectionOnly) {
       if (entry.widget) entry.widget.value = serializeLayout(group.layout);
       callListener(entry.onChange, group.layout, origin);
@@ -476,6 +507,32 @@ function notify(group, origin, selectionOnly = false) {
     for (const listener of [...entry.selectionListeners]) callListener(listener, group.selection, origin);
   }
   dirty();
+}
+
+let changeGraph = null;
+let changeTimer = 0;
+
+// ComfyUI marks a workflow modified and records undo steps only through the
+// ChangeTracker, and writing widget.value never reaches it. Open one change for
+// the whole edit and close it once the burst stops, so a run of keystrokes is a
+// single undo step instead of sixty.
+function beginChange(graph) {
+  if (!graph?.beforeChange) return;
+  if (changeGraph && changeGraph !== graph) commitChange();
+  if (!changeGraph) {
+    changeGraph = graph;
+    graph.beforeChange();
+  }
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(commitChange, 400);
+}
+
+export function commitChange() {
+  if (!changeGraph) return;
+  clearTimeout(changeTimer);
+  const graph = changeGraph;
+  changeGraph = null;
+  graph.afterChange?.();
 }
 
 function refreshConnections(graph) {
@@ -510,6 +567,9 @@ export function getLayoutStore(node) {
     get selection() {
       return current().selection;
     },
+    get selections() {
+      return current().selections.slice();
+    },
     subscribe(listener) {
       entry.listeners.add(listener);
       return () => entry.listeners.delete(listener);
@@ -519,11 +579,23 @@ export function getLayoutStore(node) {
       return () => entry.selectionListeners.delete(listener);
     },
     setSelection(index, origin = "selection") {
+      this.setSelections(Number.isInteger(index) && index >= 0 ? [index] : [], origin);
+    },
+    setSelections(indices, origin = "selection") {
       const state = current();
-      const next = Number.isInteger(index) ? index : -1;
-      if (state.selection === next) return;
-      state.selection = next;
+      const next = [...new Set(indices)].filter(i => Number.isInteger(i) && i >= 0 && i < state.layout.elements.length);
+      if (next.length > 1 && next.includes(0)) next.splice(next.indexOf(0), 1);
+      if (JSON.stringify(state.selections) === JSON.stringify(next)) return;
+      state.selections = next;
+      state.selection = next.at(-1) ?? -1;
       notify(state, origin, true);
+    },
+    selectElement(index, origin, { toggle = false } = {}) {
+      const members = elementIndices(current().layout, index);
+      if (!toggle || index < 1) return this.setSelections([...members.filter(i => i !== index), ...members.filter(i => i === index)], origin);
+      const allSelected = members.every(i => current().selections.includes(i));
+      const remaining = current().selections.filter(i => !members.includes(i));
+      this.setSelections(allSelected ? remaining : [...remaining, ...members.filter(i => i !== index), index], origin);
     },
     update(mutator, origin) {
       const state = current();
@@ -531,6 +603,8 @@ export function getLayoutStore(node) {
       mutator(layout);
       state.layout = normalizeLayout(layout);
       state.seeded = true;
+      state.selections = state.selections.filter(i => i < state.layout.elements.length);
+      state.selection = state.selections.at(-1) ?? -1;
       notify(state, origin);
       return state.layout;
     },
@@ -547,23 +621,40 @@ export function getLayoutStore(node) {
       const layout = parseLayout(next) ?? normalizeLayout(next);
       state.layout = layout;
       state.seeded = true;
-      if (state.selection >= layout.elements.length) state.selection = -1;
+      state.selections = state.selections.filter(i => i < layout.elements.length);
+      state.selection = state.selections.at(-1) ?? -1;
       notify(state, origin);
+      return layout;
+    },
+    importLayout(next, origin) {
+      const layout = parseLayout(next);
+      if (!layout) throw new Error("无法解析布局：需要 moss-layout/v1 的 elements 数组和 percent_xywh 坐标。");
+      const canvas = upstreamCanvas(node);
+      canvas?.__mossCanvasUI?.syncSize();
+      for (const name of ["width", "height"]) {
+        if (canvas?.inputs?.some(input => input.name === name && input.link != null)) layout.canvas[name] = current().layout.canvas[name];
+      }
+      this.replace(layout, origin);
+      this.setSelection(-1, origin);
       return layout;
     },
     register(registeredNode, onChange) {
       if (registeredNode !== node) throw new Error("MOSS layout store belongs to a different node");
       // Every text widget of these nodes is replaced by the DOM editor; keep the
-      // serialized values but shrink them to nothing so the node body is all UI.
+      // serialized values but shrink the rows so the node body is all UI.
       for (const entry of node.widgets ?? []) {
-        if (!HIDDEN_WIDGETS.has(entry.name)) continue;
-        entry.hidden = true;
-        entry.computeSize = () => [0, -4];
-        entry.options = entry.options ?? {};
-        entry.options.getMinHeight = () => 0;
-        entry.options.getMaxHeight = () => 0;
+        if (HIDDEN_WIDGETS.has(entry.name)) {
+          entry.hidden = true;
+          entry.computeSize = () => [0, -4];
+          entry.options = entry.options ?? {};
+          entry.options.getMinHeight = () => 0;
+          entry.options.getMaxHeight = () => 0;
+          continue;
+        }
+        if (LINKED_WIDGETS.has(entry.name)) compactLinkedWidget(entry);
       }
       const widget = node.widgets?.find((entry) => entry.name === "state");
+      if (!widget) console.warn("[moss-layout-ui] 找不到 state widget，画布修改不会被保存", node.type);
       entry.widget = widget;
       entry.onChange = onChange;
 
@@ -585,7 +676,10 @@ export function getLayoutStore(node) {
           state.layout = saved;
           state.seeded = true;
         }
-        if (state.selection < 0 && state.layout.elements.length > 1) state.selection = 1;
+        if (state.selection < 0 && state.layout.elements.length > 1) {
+          state.selection = 1;
+          state.selections = [...elementIndices(state.layout, 1).filter(i => i !== 1), 1];
+        }
         notify(state, "configure");
         refreshConnections(node.graph);
         return result;
@@ -595,12 +689,14 @@ export function getLayoutStore(node) {
         const original = node[hook];
         node[hook] = function (...args) {
           const result = original?.apply(this, args);
+          dirty();
           refreshConnections(node.graph);
           return result;
         };
       }
       const originalRemoved = node.onRemoved;
       node.onRemoved = function (...args) {
+        commitChange();
         bindings.delete(node);
         refreshConnections(node.graph);
         return originalRemoved?.apply(this, args);

@@ -3,15 +3,18 @@
 
 import {
   h, injectStyle, getLayoutStore, syncFooter, button, compilePrompt, parseLayout,
-  serializePretty,
+  serializePretty, readRawLayout,
 } from "./moss_common.js";
+
+import { mountTemplates } from "./moss_templates.js";
+import { workflowWarnings, duplicateInstallWarning } from "./moss_checks.js";
 
 const CLASS = "MOSSLayoutStandardPrompt";
 const STYLE_ID = "moss-layout-prompt-style";
 
 const CSS = `
 .mls-card{display:flex;flex-direction:column;height:100%;min-height:0;padding:13px 12px 10px;
-  border-color:#333e52;overflow:hidden}
+  border-color:#333e52;overflow-y:auto}
 .mls-title{margin:0 0 9px;font-size:15px;font-weight:700;line-height:1.3;color:#e6e9ef}
 .mls-label{display:block;margin:0 0 5px;font-size:12px;color:#8b93a1}
 .mls-editor{margin:0 0 10px;flex:0 0 auto;background:#252e3f;border-color:#35415a;font-size:13px}
@@ -31,53 +34,6 @@ const CSS = `
 .mls-card .ml-footer{padding-top:8px;flex:0 0 auto}
 `;
 
-// Same extraction pass as parseLayout, but keeps the raw objects so a merge can
-// tell "field missing from the pasted layout" apart from "field set to default".
-function jsonObjects(text) {
-  const found = [];
-  for (let start = 0; start < text.length; start += 1) {
-    if (text[start] !== "{") continue;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-    for (let index = start; index < text.length; index += 1) {
-      const char = text[index];
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (char === "\\") escaped = true;
-        else if (char === '"') inString = false;
-        continue;
-      }
-      if (char === '"') inString = true;
-      else if (char === "{") depth += 1;
-      else if (char === "}") {
-        depth -= 1;
-        if (depth === 0) {
-          found.push(text.slice(start, index + 1));
-          break;
-        }
-      }
-    }
-  }
-  return found;
-}
-
-function readRawLayout(text) {
-  const trimmed = (text ?? "").trim();
-  if (!trimmed) return null;
-  for (const candidate of [trimmed, ...jsonObjects(trimmed)]) {
-    let value;
-    try {
-      value = JSON.parse(candidate);
-    } catch (error) {
-      continue;
-    }
-    if (Array.isArray(value)) return { elements: value };
-    if (value && typeof value === "object" && Array.isArray(value.elements)) return value;
-  }
-  return null;
-}
-
 export function mountPrompt(node) {
   const layoutStore = getLayoutStore(node);
   injectStyle(STYLE_ID, CSS);
@@ -85,6 +41,15 @@ export function mountPrompt(node) {
   let tab = "json";
   let copyTimer = 0;
   let editingGlobal = false;
+  let duplicateWarning = "";
+  const checks = h("div", {class:"mls-checks", role:"status", style:{whiteSpace:"pre-wrap",color:"#f5cf8a",fontSize:"11px",maxHeight:"90px",overflowY:"auto",flex:"0 0 auto",marginBottom:"6px"}});
+  function refreshChecks() {
+    const issues = workflowWarnings(node, layoutStore.get());
+    if (duplicateWarning) issues.unshift(duplicateWarning);
+    const text = issues.join("\n");
+    if(checks.textContent !== text) checks.textContent=text;
+    checks.hidden = !text;
+  }
 
   const globalArea = h("textarea", {
     class: "ml-textarea mls-editor mls-global ml-scroll",
@@ -119,7 +84,18 @@ export function mountPrompt(node) {
 
   function outputText() {
     const layout = layoutStore.get();
-    return tab === "prompt" ? compilePrompt(layout).prompt : serializePretty(layout);
+    return tab === "prompt" ? compilePrompt(layout, characterPositions()).prompt : serializePretty(layout);
+  }
+
+  // Same "1, 3" list the backend reads, so the preview matches the queued prompt.
+  // A linked input only has a value at execution time; the element types already
+  // encode that case, so the preview falls back to them.
+  function characterPositions() {
+    const linked = node.inputs?.some((input) => input.name === "character_boxes" && input.link != null);
+    const raw = linked ? "" : node.widgets?.find((widget) => widget.name === "character_boxes")?.value;
+    return typeof raw === "string" && /^\s*\d+(?:\s*,\s*\d+)*\s*$/.test(raw)
+      ? raw.match(/\d+/g).map(Number)
+      : [];
   }
 
   function refreshPreview() {
@@ -146,6 +122,7 @@ export function mountPrompt(node) {
     refreshGlobal(layout);
     refreshPreview();
     refreshStatus(layout);
+    refreshChecks();
   }
 
   function setTab(next) {
@@ -158,7 +135,7 @@ export function mountPrompt(node) {
   }
 
   function invalidBuffer() {
-    alert("无法解析标准布局 JSON。请粘贴包含 elements 数组的布局 JSON。");
+    alert("无法解析布局。请使用 moss-layout/v1、percent_xywh 和 elements 数组；模型的 summary/items 输出不能作为画布布局导入。");
   }
 
   function importLayout() {
@@ -167,7 +144,7 @@ export function mountPrompt(node) {
       invalidBuffer();
       return;
     }
-    layoutStore.replace(parsed, node.id);
+    layoutStore.importLayout(parsed, node.id);
   }
 
   function mergeLayout() {
@@ -176,26 +153,21 @@ export function mountPrompt(node) {
       invalidBuffer();
       return;
     }
-    layoutStore.update((layout) => {
-      const canvas = raw.canvas;
-      if (canvas && typeof canvas === "object") {
-        if (Number.isFinite(Number(canvas.width))) layout.canvas.width = Number(canvas.width);
-        if (Number.isFinite(Number(canvas.height))) layout.canvas.height = Number(canvas.height);
+    const layout = JSON.parse(serializePretty(layoutStore.get()));
+    if (raw.canvas && typeof raw.canvas === "object") layout.canvas = {...layout.canvas, ...raw.canvas};
+    if (typeof raw.global_prompt === "string") layout.global_prompt = raw.global_prompt;
+    let index = 1;
+    for (const source of raw.elements) {
+      if (!source || typeof source !== "object" || Array.isArray(source)) continue;
+      const background = source.type === "background" || (!source.type && source.tag === "固定");
+      const at = background ? 0 : index++;
+      const target = layout.elements[at];
+      if (!target) { layout.elements.push(source); continue; }
+      for (const key of ["name", "tag", "type", "box", "prompt", "text", "locked", "group_id", "typography"]) {
+        if (Object.hasOwn(source, key)) target[key] = source[key];
       }
-      if (typeof raw.global_prompt === "string") layout.global_prompt = raw.global_prompt;
-      const incoming = Array.isArray(raw.elements) ? raw.elements : [];
-      incoming.forEach((source, index) => {
-        if (!source || typeof source !== "object" || Array.isArray(source)) return;
-        const target = layout.elements[index];
-        if (!target) {
-          layout.elements.push(source);
-          return;
-        }
-        for (const key of ["name", "tag", "type", "box", "prompt", "text"]) {
-          if (key in source) target[key] = source[key];
-        }
-      });
-    }, node.id);
+    }
+    layoutStore.importLayout(layout, node.id);
   }
 
   function exportToBuffer() {
@@ -216,6 +188,7 @@ export function mountPrompt(node) {
       await navigator.clipboard.writeText(text);
       flashCopy("已复制");
     } catch (error) {
+      preview.value = text;
       preview.focus();
       preview.select();
       let copied = false;
@@ -252,6 +225,7 @@ export function mountPrompt(node) {
       h("div", { class: "mls-title", text: "标准提示词 → 画布 → 最终生成词" }),
       h("span", { class: "mls-label", text: "全局提示词 · 当前画布的生成依据" }),
       globalArea,
+      mountTemplates(node, layoutStore),
       h("span", { class: "mls-label", text: "标准输入 · 粘贴后点击导入" }),
       standardArea,
       h("div", { class: "mls-actions" }, [importButton, mergeButton, exportButton]),
@@ -260,17 +234,26 @@ export function mountPrompt(node) {
         text: "导入只在点击按钮时执行。运行和导出始终读取当前画布。canvas 尺寸用于坐标语境，实际分辨率由选择器控制。",
       }),
       statusEl,
+      checks,
       h("div", { class: "mls-tabs" }, [jsonTab, promptTab, copyButton]),
       preview,
       syncFooter(),
     ]),
   ]);
 
-  node.addDOMWidget("moss_prompt_ui", CLASS, root, {
+  root.addEventListener("keydown", event => event.stopPropagation());
+  root.addEventListener("keyup", event => event.stopPropagation());
+  const checkTimer = setInterval(refreshChecks, 1000);
+  duplicateInstallWarning().then(warning => { duplicateWarning=warning; if(root.isConnected)refreshChecks(); });
+  const removed = node.onRemoved;
+  node.onRemoved = function(...args) { clearInterval(checkTimer); clearTimeout(copyTimer); return removed?.apply(this,args); };
+
+  const domWidget = node.addDOMWidget("moss_prompt_ui", CLASS, root, {
     serialize: false,
     hideOnZoom: false,
     getMinHeight: () => 620,
   });
+  domWidget.serialize = false;
 
   layoutStore.register(node, (layout) => render(layout));
 

@@ -5,6 +5,10 @@ import {
   clampBox, elementLabel, nextElementName,
   tagColor, syncFooter,
 } from "./moss_common.js";
+import { boundsOf, positionLocked, selectionUnits, translatedBoxes, resizedBoxes, arrangedBoxes, snapBox } from "./moss_edit.js";
+
+import { inputNumber } from "./moss_checks.js";
+import { drawTextPreview } from "./moss_text.js";
 
 const CLASS = "MOSSLayoutCanvas";
 const STYLE_ID = "moss-layout-canvas-style";
@@ -12,26 +16,6 @@ const MIN_BOX = 0.8;
 const HANDLE_SIZE = 8;
 const HISTORY_LIMIT = 60;
 const FONT = '600 11px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
-
-function inputNumber(node, name, seen = new Set()) {
-  if (seen.has(node)) return NaN;
-  seen.add(node);
-  const slot = node.inputs?.findIndex((input) => input.name === name) ?? -1;
-  if (slot >= 0 && node.inputs[slot].link != null) {
-    let source = node.getInputNode(slot);
-    while (source?.type === "Reroute") {
-      if (seen.has(source)) return NaN;
-      seen.add(source);
-      source = source.getInputNode(0);
-    }
-    const type = source?.comfyClass ?? source?.type;
-    if (type === "PrimitiveInt" || type === "PrimitiveNode") {
-      return inputNumber(source, "value", seen);
-    }
-    return NaN;
-  }
-  return Number(node.widgets?.find((widget) => widget.name === name)?.value);
-}
 
 const CSS = `
 .mlc-root{position:relative}
@@ -53,6 +37,12 @@ const CSS = `
 .mlc-template-hint{color:#6b7380;font-size:11px}
 .mlc-status-row{display:flex;align-items:center;gap:6px}
 .mlc-status{color:#8b93a1;font-size:11px}
+.mlc-edit-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mlc-selection{font-size:11px;color:#9facbf;min-width:72px}
+.mlc-snap{margin-left:auto}
+.mlc-align .ml-btn{padding:4px 8px;font-size:11px}
+.mlc-root .ml-btn:disabled{opacity:.35;cursor:default}
+.mlc-canvas:focus{outline:none}
 .mlc-stage{position:relative;flex:1 1 0;min-height:300px;border:1px solid #2f3847;border-radius:10px;
   background:#12161d;overflow:hidden}
 .mlc-canvas{display:block;width:100%;height:100%;touch-action:none}
@@ -78,9 +68,11 @@ function mountCanvas(node) {
   let hover = -1;
   let drag = null;
   let frame = 0;
+  let guides = [];
   let template = { enabled: true, prompt: "" };
   const history = [];
   const redo = [];
+  const nudgeBurst = { before: null, at: 0 };
 
   const status = h("span", { class: "mlc-status", text: "" });
   const undoButton = h("button", { type: "button", class: "ml-btn ml-btn-sm", text: "撤销", disabled: "disabled" });
@@ -95,7 +87,7 @@ function mountCanvas(node) {
 
   const objectSelect = h("select", { class: "ml-select mlc-object", onchange: () => {
     if (objectSelect.value === "") return;
-    layoutStore.setSelection(Number(objectSelect.value), node.id);
+    layoutStore.selectElement(Number(objectSelect.value), node.id);
     objectSelect.value = "";
   } }, [h("option", { value: "", text: "对象" })]);
 
@@ -126,6 +118,25 @@ function mountCanvas(node) {
   templateCheck.checked = true;
 
   const modal = h("div", { class: "mlc-modal", style: { display: "none" } });
+  const selectionLabel = h("span", { class: "mlc-selection" });
+  const groupButton = h("button", { type: "button", class: "ml-btn ml-btn-sm", text: "编组", title: "整体选择、移动与缩放 · Ctrl+G", onclick: groupSelection });
+  const ungroupButton = h("button", { type: "button", class: "ml-btn ml-btn-sm", text: "解组", title: "Ctrl+Shift+G", onclick: ungroupSelection });
+  const lockButton = h("button", { type: "button", class: "ml-btn ml-btn-sm", text: "锁定位置", title: "锁定位置、大小并防止误删，文案仍可编辑", onclick: toggleLock });
+  const snapCheck = h("input", { type: "checkbox" });
+  snapCheck.checked = node.properties?.moss_snap === true;
+  snapCheck.addEventListener("change", () => {
+    node.properties = node.properties ?? {};
+    node.properties.moss_snap = snapCheck.checked;
+    guides = [];
+    requestDraw();
+  });
+  const alignButtons = [
+    ["start-x", "左对齐"], ["center-x", "水平居中"], ["end-x", "右对齐"],
+    ["start-y", "顶对齐"], ["center-y", "垂直居中"], ["end-y", "底对齐"],
+    ["distribute-x", "水平等距"], ["distribute-y", "垂直等距"],
+  ].map(([action, text]) => h("button", { type: "button", class: "ml-btn ml-btn-sm", text,
+    "data-action": action, title: action.startsWith("distribute") ? "至少选中三个对象或组，保持首尾位置，均分间距" : "多选时按选区对齐；单个对象或组按画布对齐",
+    onclick: () => arrangeSelection(action) }));
 
   const root = h("div", { class: "ml-root mlc-root" }, [
     h("div", { class: "ml-card mlc-tools" }, [
@@ -138,6 +149,9 @@ function mountCanvas(node) {
         h("button", { type: "button", class: "ml-btn ml-btn-sm", text: "编辑模板", onclick: openTemplate }),
         h("span", { class: "mlc-template-hint", text: "模板只在新建框时填入" }),
       ]),
+      h("div", { class: "mlc-edit-row" }, [selectionLabel, groupButton, ungroupButton, lockButton,
+        h("label", { class: "mlc-check mlc-snap", title: "吸附到画布、其他对象的边缘或中心，拖动时显示参考线" }, [snapCheck, h("span", { text: "吸附" })])]),
+      h("div", { class: "mlc-edit-row mlc-align" }, alignButtons),
       h("div", { class: "mlc-status-row" }, [
         status,
         h("span", { class: "ml-spacer" }),
@@ -145,27 +159,29 @@ function mountCanvas(node) {
       ]),
     ]),
     h("div", { class: "mlc-stage" }, [ ]),
-    h("div", { class: "mlc-hint", text: "先选 tag，再拖出新框。选择模式可移动 / 缩放；重叠处 Alt 点击轮选。背景固定铺满。" }),
+    h("div", { class: "mlc-hint", text: "Shift 点选多选；选择模式空白拖动框选。Alt 轮选重叠框。方向键微调 0.1%，Shift 为 1%；Ctrl+G 编组。" }),
     syncFooter(),
     modal,
   ]);
 
   const stage = root.querySelector(".mlc-stage");
-  const canvas = h("canvas", { class: "mlc-canvas" });
+  const canvas = h("canvas", { class: "mlc-canvas", tabindex: "0", "aria-label": "布局画布，可使用方向键微调选区" });
   stage.append(canvas);
   const context = canvas.getContext("2d");
   const view = { x: 0, y: 0, w: 1, h: 1 };
+  let viewStale = true;
 
-  node.addDOMWidget("moss_canvas_ui", "MOSSLayoutCanvas", root, {
+  const domWidget = node.addDOMWidget("moss_canvas_ui", "MOSSLayoutCanvas", root, {
     serialize: false,
     hideOnZoom: false,
     getMinHeight: () => 520,
   });
+  domWidget.serialize = false;
 
   setMode("draw");
   for (const button of tagButtons) if (button.textContent === activeTag) button.classList.add("is-active");
 
-  const selectionCleanup = layoutStore.subscribeSelection(() => requestDraw());
+  const selectionCleanup = layoutStore.subscribeSelection(() => { refreshEditButtons(); requestDraw(); });
 
   // ------------------------------------------------------------------
   // history
@@ -175,7 +191,9 @@ function mountCanvas(node) {
   }
 
   function pushHistory(before) {
-    history.push(before ?? snapshot());
+    // A held arrow key nudges many times; the whole run stays one undo step.
+    if (before !== nudgeBurst.before) nudgeBurst.before = null;
+    history.push({ layout: before ?? snapshot(), selection: layoutStore.selections });
     if (history.length > HISTORY_LIMIT) history.shift();
     redo.length = 0;
     updateHistoryButtons();
@@ -187,29 +205,30 @@ function mountCanvas(node) {
   }
 
   function undo() {
+    drag = null;
+    guides = [];
     if (!history.length) return;
-    redo.push(snapshot());
+    redo.push({ layout: snapshot(), selection: layoutStore.selections });
     const previous = history.pop();
-    layoutStore.replace(previous, node.id);
+    layoutStore.replace(previous.layout, node.id);
+    layoutStore.setSelections(previous.selection, node.id);
     updateHistoryButtons();
   }
 
   function redoAction() {
+    drag = null;
+    guides = [];
     if (!redo.length) return;
-    history.push(snapshot());
+    history.push({ layout: snapshot(), selection: layoutStore.selections });
     const next = redo.pop();
-    layoutStore.replace(next, node.id);
+    layoutStore.replace(next.layout, node.id);
+    layoutStore.setSelections(next.selection, node.id);
     updateHistoryButtons();
   }
 
   // ------------------------------------------------------------------
   // geometry
   // ------------------------------------------------------------------
-  function canvasSize() {
-    const layout = layoutStore.get();
-    return layout.canvas;
-  }
-
   function fitView() {
     const layout = layoutStore.get();
     const cssWidth = stage.clientWidth;
@@ -222,10 +241,13 @@ function mountCanvas(node) {
     view.h = Math.max(1, layout.canvas.height * scale);
     view.x = (cssWidth - view.w) / 2;
     view.y = (cssHeight - view.h) / 2;
+    viewStale = false;
     return true;
   }
 
   function toPercent(event) {
+    // fitView() reads the stage size, so only redo it after the stage changed.
+    if (viewStale) fitView();
     const rect = canvas.getBoundingClientRect();
     const zoom = canvas.clientWidth ? rect.width / canvas.clientWidth : 1;
     const x = (event.clientX - rect.left) / zoom;
@@ -234,12 +256,6 @@ function mountCanvas(node) {
       x: ((x - view.x) / view.w) * 100,
       y: ((y - view.y) / view.h) * 100,
     };
-  }
-
-  function foregroundElements() {
-    const layout = layoutStore.get();
-    return layout.elements.map((element, index) => ({ element, index }))
-      .filter((entry) => entry.element.type !== "background");
   }
 
   function itemAt(point) {
@@ -254,18 +270,21 @@ function mountCanvas(node) {
   }
 
   function cornerAt(point) {
-    const layout = layoutStore.get();
     const thresholdX = (HANDLE_SIZE / view.w) * 100;
     const thresholdY = (HANDLE_SIZE / view.h) * 100;
-    for (let index = layout.elements.length - 1; index >= 1; index -= 1) {
-      const [left, top, width, height] = layout.elements[index].box;
+    const layout = layoutStore.get();
+    const selected = editableIndices();
+    const candidates = selected.length ? [{ indices: selected, box: boundsOf(selected.map(i => layout.elements[i].box)) }] : [];
+    if (layoutStore.selections.length <= 1) candidates.push(...selectionUnits(layout, layout.elements.map((_, i) => i), true).reverse());
+    for (const candidate of candidates) {
+      const [left, top, width, height] = candidate.box;
       const corners = [
         [left, top], [left + width, top], [left, top + height], [left + width, top + height],
       ];
       for (let corner = 0; corner < corners.length; corner += 1) {
         if (Math.abs(point.x - corners[corner][0]) <= thresholdX
           && Math.abs(point.y - corners[corner][1]) <= thresholdY) {
-          return { index, corner };
+          return { ...candidate, corner };
         }
       }
     }
@@ -365,16 +384,35 @@ function mountCanvas(node) {
       if (index === 0) return;
       // While moving or resizing, draw the box from the live drag rectangle so
       // the selected box itself follows the cursor instead of a dashed ghost.
-      const live = drag && drag.index === index
-        && (drag.type === "move" || drag.type === "resize");
-      drawElement(element, index, live ? drag.box : element.box);
+      const at = drag?.indices?.indexOf(index) ?? -1;
+      drawElement(element, index, at >= 0 ? drag.boxes[at] : element.box);
     });
 
     if (drag?.type === "create") drawPreview(drag.box);
+    if (drag?.type === "marquee") drawMarquee(drag.box);
+    const selected = editableIndices();
+    if (selected.length > 1) {
+      const boxes = selected.map(i => {
+        const at = drag?.indices?.indexOf(i) ?? -1;
+        return at >= 0 ? drag.boxes[at] : layout.elements[i].box;
+      });
+      drawSelectionBounds(boundsOf(boxes));
+    }
+    context.save();
+    context.strokeStyle = "#67e8f9";
+    context.lineWidth = 1;
+    context.setLineDash([4, 3]);
+    for (const guide of guides) {
+      const at = (guide.axis === 0 ? view.x : view.y) + guide.value / 100 * (guide.axis === 0 ? view.w : view.h);
+      context.beginPath();
+      context.moveTo(guide.axis === 0 ? at : view.x, guide.axis === 0 ? view.y : at);
+      context.lineTo(guide.axis === 0 ? at : view.x + view.w, guide.axis === 0 ? view.y + view.h : at);
+      context.stroke();
+    }
+    context.restore();
   }
 
   function boxToScreen(box) {
-    const layout = layoutStore.get();
     return {
       x: view.x + (box[0] / 100) * view.w,
       y: view.y + (box[1] / 100) * view.h,
@@ -387,12 +425,16 @@ function mountCanvas(node) {
     const color = tagColor(element);
     const screen = boxToScreen(box);
     if (screen.w < 34 || screen.h < 14) return;
-    const label = elementLabel(element, index);
+    const label = `${element.locked ? "🔒 " : ""}${element.group_id ? "▦ " : ""}${elementLabel(element, index)}`;
     context.font = FONT;
     const metrics = context.measureText(label);
     const padding = 6;
     const chipWidth = Math.min(metrics.width + padding * 2, Math.max(screen.w, 40));
     const chipHeight = 18;
+    if (element.type === "text") {
+      if (screen.y - view.y < chipHeight + 2) return;
+      screen.y -= chipHeight + 2;
+    }
     context.fillStyle = color;
     roundedRect(screen.x, screen.y, chipWidth, chipHeight, 4);
     context.fill();
@@ -406,14 +448,15 @@ function mountCanvas(node) {
   function drawElement(element, index, box = element.box) {
     const screen = boxToScreen(box);
     const color = tagColor(element);
-    const active = index === selectedIndex();
+    const active = layoutStore.selections.includes(index);
     context.fillStyle = `${color}24`;
     context.fillRect(screen.x, screen.y, screen.w, screen.h);
     context.lineWidth = active ? 2 : 1.5;
     context.strokeStyle = color;
     context.strokeRect(screen.x + 0.5, screen.y + 0.5, Math.max(0, screen.w - 1), Math.max(0, screen.h - 1));
+    drawTextPreview(context, element, screen, layoutStore.get().canvas);
     drawChip(box, index, element);
-    if (active) {
+    if (active && !positionLocked(layoutStore.get(), index) && editableIndices().length === 1) {
       context.fillStyle = "#f2f4f7";
       context.strokeStyle = "rgba(16,19,24,0.65)";
       context.lineWidth = 1;
@@ -431,6 +474,32 @@ function mountCanvas(node) {
       context.strokeStyle = color;
       context.strokeRect(screen.x + 1, screen.y + 1, Math.max(0, screen.w - 2), Math.max(0, screen.h - 2));
     }
+  }
+
+  function drawSelectionBounds(box) {
+    const s = boxToScreen(box);
+    context.save();
+    context.strokeStyle = "#dbeafe";
+    context.lineWidth = 1.5;
+    context.setLineDash([5, 3]);
+    context.strokeRect(s.x, s.y, s.w, s.h);
+    context.setLineDash([]);
+    context.fillStyle = "#f2f4f7";
+    for (const [x, y] of [[s.x, s.y], [s.x + s.w, s.y], [s.x, s.y + s.h], [s.x + s.w, s.y + s.h]]) {
+      context.fillRect(x - HANDLE_SIZE / 2, y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    }
+    context.restore();
+  }
+
+  function drawMarquee(box) {
+    const s = boxToScreen(box);
+    context.save();
+    context.fillStyle = "#60a5fa20";
+    context.fillRect(s.x, s.y, s.w, s.h);
+    context.strokeStyle = "#93c5fd";
+    context.setLineDash([4, 3]);
+    context.strokeRect(s.x, s.y, s.w, s.h);
+    context.restore();
   }
 
   function drawPreview(box) {
@@ -456,7 +525,6 @@ function mountCanvas(node) {
 
   function addElement(box) {
     const type = TAG_TYPE[activeTag] ?? "object";
-    const layout = layoutStore.get();
     const element = {
       name: nextElementName(type),
       tag: activeTag,
@@ -471,14 +539,96 @@ function mountCanvas(node) {
     }, node.id);
     const index = layoutStore.get().elements.length - 1;
     layoutStore.setSelection(index, node.id);
-    void layout;
+  }
+
+  function selectedIndices() {
+    return layoutStore.selections.filter(i => i > 0);
+  }
+
+  function editableIndices() {
+    return selectionUnits(layoutStore.get(), selectedIndices(), true).flatMap(unit => unit.indices);
+  }
+
+  function editLayout(mutate) {
+    const next = JSON.parse(snapshot());
+    mutate(next);
+    if (JSON.stringify(next) === snapshot()) return;
+    pushHistory();
+    layoutStore.replace(next, node.id);
+  }
+
+  function applyBoxes(updates, before, record = true) {
+    const layout = layoutStore.get();
+    const changes = [...updates].map(([i, box]) => [i, clampBox(box)])
+      .filter(([i, box]) => !positionLocked(layout, i) && box.some((v, p) => v !== layout.elements[i].box[p]));
+    if (!changes.length) { requestDraw(); return; }
+    if (record) pushHistory(before);
+    layoutStore.update(draft => {
+      for (const [i, box] of changes) draft.elements[i].box = box;
+    }, node.id);
+  }
+
+  function groupSelection() {
+    const indices = selectionUnits(layoutStore.get(), selectedIndices()).flatMap(u => u.indices);
+    if (indices.length < 2) return;
+    const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    editLayout(layout => { for (const i of indices) layout.elements[i].group_id = id; });
+    layoutStore.setSelections(indices, node.id);
+  }
+
+  function ungroupSelection() {
+    const layout = layoutStore.get();
+    const ids = new Set(selectedIndices().map(i => layout.elements[i].group_id).filter(Boolean));
+    if (!ids.size) return;
+    editLayout(draft => {
+      for (const element of draft.elements) if (ids.has(element.group_id)) delete element.group_id;
+    });
+  }
+
+  function toggleLock() {
+    const layout = layoutStore.get();
+    const indices = selectionUnits(layout, selectedIndices()).flatMap(u => u.indices);
+    if (!indices.length) return;
+    const lock = !indices.every(i => positionLocked(layout, i));
+    editLayout(draft => {
+      for (const i of indices) {
+        if (lock) draft.elements[i].locked = true;
+        else delete draft.elements[i].locked;
+      }
+    });
+  }
+
+  function arrangeSelection(action) {
+    applyBoxes(arrangedBoxes(layoutStore.get(), selectedIndices(), action));
+  }
+
+  function refreshEditButtons() {
+    const layout = layoutStore.get();
+    const indices = selectedIndices();
+    const units = selectionUnits(layout, indices);
+    const editable = selectionUnits(layout, indices, true);
+    const locked = indices.filter(i => positionLocked(layout, i)).length;
+    selectionLabel.textContent = `已选 ${indices.length}${locked ? ` · 锁定 ${locked}` : ""}`;
+    groupButton.disabled = units.length < 2;
+    ungroupButton.disabled = !indices.some(i => layout.elements[i].group_id);
+    lockButton.disabled = !indices.length;
+    lockButton.textContent = indices.length && locked === indices.length ? "解锁位置" : "锁定位置";
+    for (const button of alignButtons) {
+      button.disabled = editable.length < (button.dataset.action.startsWith("distribute") ? 3 : 1);
+    }
+  }
+
+  function deleteSelection() {
+    const indices = new Set(editableIndices());
+    if (!indices.size) return;
+    editLayout(layout => { layout.elements = layout.elements.filter((_, i) => !indices.has(i)); });
+    layoutStore.setSelection(-1, node.id);
   }
 
   function clearCanvas() {
-    if (!window.confirm("清空画布？所有前景元素都会删除，只保留背景。")) return;
+    if (!window.confirm("清空画布？删除未锁定的前景元素，保留背景与已锁定元素。")) return;
     const layout = layoutStore.get();
-    pushHistory();
-    layoutStore.replace({ ...layout, elements: [layout.elements[0]] }, node.id);
+    editLayout(draft => { draft.elements = draft.elements.filter((_, i) => positionLocked(layout, i)); });
     layoutStore.setSelection(-1, node.id);
     requestDraw();
   }
@@ -531,6 +681,7 @@ function mountCanvas(node) {
     if (event.button !== 0 || event.isPrimary === false) return;
     event.preventDefault();
     event.stopPropagation();
+    canvas.focus({ preventScroll: true });
     try {
       canvas.setPointerCapture(event.pointerId);
     } catch (error) {
@@ -541,14 +692,16 @@ function mountCanvas(node) {
     const layout = layoutStore.get();
     const before = snapshot();
 
+    const index = event.altKey ? cycleIndex(point) : itemAt(point);
+    if (event.shiftKey && index >= 0) {
+      layoutStore.selectElement(index, node.id, { toggle: true });
+      return;
+    }
+
     if (event.altKey) {
-      const index = cycleIndex(point);
       if (index >= 0) {
-        layoutStore.setSelection(index, node.id);
-        const [left, top, width, height] = layout.elements[index].box;
-        drag = { type: "move", index, origin: point, startBox: [left, top, width, height],
-          box: [left, top, width, height], before, pointerId: event.pointerId };
-        requestDraw();
+        layoutStore.selectElement(index, node.id);
+        startTransform("move", editableIndices(), point, before, event.pointerId);
       }
       return;
     }
@@ -558,31 +711,29 @@ function mountCanvas(node) {
     // "框选" (still draws new boxes on empty areas) or "选择 / 移动".
     const corner = cornerAt(point);
     if (corner) {
-      layoutStore.setSelection(corner.index, node.id);
-      drag = {
-        type: "resize", index: corner.index, corner: corner.corner, origin: point,
-        startBox: layout.elements[corner.index].box.slice(),
-        box: layout.elements[corner.index].box.slice(), before, pointerId: event.pointerId,
-      };
-      requestDraw();
+      if (!corner.indices.every(i => layoutStore.selections.includes(i))) layoutStore.setSelections(corner.indices, node.id);
+      startTransform("resize", corner.indices, point, before, event.pointerId, corner.corner);
       return;
     }
 
-    const index = itemAt(point);
     if (index >= 0) {
-      layoutStore.setSelection(index, node.id);
-      const [left, top, width, height] = layout.elements[index].box;
-      drag = { type: "move", index, origin: point, startBox: [left, top, width, height],
-        box: [left, top, width, height], before, pointerId: event.pointerId };
-      requestDraw();
+      if (!layoutStore.selections.includes(index)) layoutStore.selectElement(index, node.id);
+      if (!positionLocked(layout, index)) startTransform("move", editableIndices(), point, before, event.pointerId);
       return;
     }
 
-    layoutStore.setSelection(-1, node.id);
-    if (mode === "draw") {
-      drag = { type: "create", origin: point, box: [point.x, point.y, MIN_BOX, MIN_BOX],
-        before, pointerId: event.pointerId };
-    }
+    const baseSelection = event.shiftKey ? layoutStore.selections : [];
+    if (!event.shiftKey) layoutStore.setSelection(-1, node.id);
+    drag = { type: mode === "draw" && !event.shiftKey ? "create" : "marquee", origin: point,
+      box: [point.x, point.y, 0, 0], before, pointerId: event.pointerId, baseSelection };
+    requestDraw();
+  }
+
+  function startTransform(type, indices, point, before, pointerId, corner) {
+    if (!indices.length) return;
+    const startBoxes = indices.map(i => layoutStore.get().elements[i].box.slice());
+    drag = { type, indices, corner, origin: point, before, pointerId,
+      startBoxes, boxes: startBoxes.map(b => b.slice()), startBox: boundsOf(startBoxes) };
     requestDraw();
   }
 
@@ -593,28 +744,38 @@ function mountCanvas(node) {
     };
   }
 
-  function applyDrag(point) {
+  function applyDrag(point, bypassSnap = false) {
     if (!drag) return;
     const layout = layoutStore.get();
-    if (drag.type === "create") {
+    guides = [];
+    const zoom = canvas.getBoundingClientRect().width / canvas.clientWidth || 1;
+    const tolerance = [600 / (view.w * zoom), 600 / (view.h * zoom)];
+    if (snapCheck.checked && !bypassSnap && drag.type !== "move" && drag.type !== "marquee") {
+      const snapped = snapBox(layout, [point.x, point.y, 0, 0], drag.indices ?? [], tolerance, false);
+      point = { x: point.x + snapped.delta[0], y: point.y + snapped.delta[1] };
+      guides = snapped.guides;
+    }
+    if (drag.type === "create" || drag.type === "marquee") {
       const start = clampPoint(drag.origin);
       const end = clampPoint(point);
       drag.box = [
         Math.min(start.x, end.x), Math.min(start.y, end.y),
-        Math.max(MIN_BOX, Math.abs(end.x - start.x)), Math.max(MIN_BOX, Math.abs(end.y - start.y)),
+        Math.abs(end.x - start.x), Math.abs(end.y - start.y),
       ];
-      drag.box = clampBox(drag.box);
       requestDraw();
       return;
     }
     if (drag.type === "move") {
-      const [left, top, width, height] = drag.startBox;
-      drag.box = clampBox([
-        Math.min(Math.max(left + point.x - drag.origin.x, 0), 100 - width),
-        Math.min(Math.max(top + point.y - drag.origin.y, 0), 100 - height),
-        width,
-        height,
-      ]);
+      let dx = point.x - drag.origin.x, dy = point.y - drag.origin.y;
+      drag.boxes = translatedBoxes(drag.startBoxes, dx, dy);
+      if (snapCheck.checked && !bypassSnap) {
+        const snapped = snapBox(layout, boundsOf(drag.boxes), drag.indices, tolerance);
+        const bounds = boundsOf(drag.boxes);
+        dx = bounds[0] - drag.startBox[0] + snapped.delta[0];
+        dy = bounds[1] - drag.startBox[1] + snapped.delta[1];
+        drag.boxes = translatedBoxes(drag.startBoxes, dx, dy);
+        guides = snapped.guides;
+      }
       requestDraw();
       return;
     }
@@ -633,42 +794,46 @@ function mountCanvas(node) {
       const y1 = Math.min(box[1], box[3]);
       const x2 = Math.max(box[0], box[2]);
       const y2 = Math.max(box[1], box[3]);
-      drag.box = clampBox([x1, y1, Math.max(MIN_BOX, x2 - x1), Math.max(MIN_BOX, y2 - y1)]);
+      const minWidth = Math.max(...drag.startBoxes.map(b => Math.min(MIN_BOX, b[2]) / b[2] * width));
+      const minHeight = Math.max(...drag.startBoxes.map(b => Math.min(MIN_BOX, b[3]) / b[3] * height));
+      const target = clampBox([x1, y1, Math.max(minWidth, x2 - x1), Math.max(minHeight, y2 - y1)]);
+      drag.boxes = resizedBoxes(drag.startBoxes, target);
       requestDraw();
       return;
     }
-    void layout;
   }
 
   function commitDrag() {
     if (!drag) return;
     const finished = drag;
     drag = null;
+    guides = [];
     const layout = layoutStore.get();
+    if (finished.type === "marquee") {
+      const [x, y, w, h] = finished.box;
+      const hits = [];
+      if (w > 0.3 && h > 0.3) layout.elements.forEach((element, i) => {
+        const b = element.box;
+        if (i > 0 && b[0] < x + w && b[0] + b[2] > x && b[1] < y + h && b[1] + b[3] > y) {
+          hits.push(...selectionUnits(layout, [i]).flatMap(u => u.indices));
+        }
+      });
+      layoutStore.setSelections([...finished.baseSelection, ...hits], node.id);
+      requestDraw();
+      return;
+    }
     if (finished.type === "create") {
       const box = finished.box;
-      if (!box || box[2] < 1 || box[3] < 1) {
+      // A click without a drag would add a box nobody can see; anything dragged
+      // past the resize limit is a real box and is kept.
+      if (!box || box[2] < MIN_BOX || box[3] < MIN_BOX) {
         requestDraw();
         return;
       }
       addElement(box);
       return;
     }
-    const element = layout.elements[finished.index];
-    if (element && finished.box) {
-      const changed = finished.box.some((value, position) => Math.abs(value - element.box[position]) > 0.001);
-      if (changed) {
-        history.push(finished.before);
-        if (history.length > HISTORY_LIMIT) history.shift();
-        redo.length = 0;
-        updateHistoryButtons();
-        layoutStore.update((draft) => {
-          draft.elements[finished.index].box = finished.box;
-        }, node.id);
-        return;
-      }
-    }
-    requestDraw();
+    applyBoxes(new Map(finished.indices.map((i, at) => [i, finished.boxes[at]])), finished.before);
   }
 
   function onPointerMove(event) {
@@ -680,24 +845,25 @@ function mountCanvas(node) {
       if (hover !== previous) requestDraw();
       const corner = cornerAt(point);
       if (corner) canvas.style.cursor = "nwse-resize";
-      else if (hover >= 0) canvas.style.cursor = "move";
+      else if (hover >= 0) canvas.style.cursor = positionLocked(layoutStore.get(), hover) ? "not-allowed" : "move";
       else canvas.style.cursor = mode === "draw" ? "crosshair" : "default";
       return;
     }
     event.preventDefault();
     event.stopPropagation();
-    applyDrag(point);
+    applyDrag(point, event.ctrlKey || event.metaKey);
   }
 
   function onPointerUp(event) {
     if (!drag || event.pointerId !== drag.pointerId) return;
-    applyDrag(toPercent(event));
+    applyDrag(toPercent(event), event.ctrlKey || event.metaKey);
     commitDrag();
   }
 
   function cancelDrag(event) {
     if (!drag || event.pointerId !== drag.pointerId) return;
     drag = null;
+    guides = [];
     requestDraw();
   }
 
@@ -712,7 +878,7 @@ function mountCanvas(node) {
   });
   const windowMove = (event) => {
     if (drag && event.target !== canvas && event.pointerId === drag.pointerId) {
-      applyDrag(toPercent(event));
+      applyDrag(toPercent(event), event.ctrlKey || event.metaKey);
     }
   };
   const windowUp = (event) => {
@@ -721,6 +887,50 @@ function mountCanvas(node) {
   window.addEventListener("pointermove", windowMove);
   window.addEventListener("pointerup", windowUp);
   window.addEventListener("pointercancel", cancelDrag);
+
+  function onCanvasKeyDown(event) {
+    if (!root.contains(event.target)) return;
+    if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable='true']")) {
+      return;
+    }
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    const arrows = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] };
+    const handled = key === "escape" || key === "delete" || key === "backspace"
+      || (!event.altKey && key in arrows) || (modifier && ["a", "g"].includes(key));
+    if (!handled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (key === "escape") {
+      drag = null;
+      guides = [];
+      layoutStore.setSelection(-1, node.id);
+      requestDraw();
+      return;
+    }
+    if (drag) return;
+    if (modifier && key === "a") {
+      layoutStore.setSelections(layoutStore.get().elements.map((_, i) => i).filter(i => i > 0), node.id);
+    } else if (modifier && key === "g") {
+      if (!event.repeat) (event.shiftKey ? ungroupSelection : groupSelection)();
+    } else if (key === "delete" || key === "backspace") {
+      deleteSelection();
+    } else if (key in arrows) {
+      const indices = editableIndices();
+      const step = event.shiftKey ? 1 : 0.1;
+      const [dx, dy] = arrows[key].map(v => v * step);
+      const boxes = translatedBoxes(indices.map(i => layoutStore.get().elements[i].box), dx, dy);
+      const burst = nudgeBurst.before && Date.now() - nudgeBurst.at < 600;
+      const before = burst ? nudgeBurst.before : snapshot();
+      nudgeBurst.before = before;
+      nudgeBurst.at = Date.now();
+      applyBoxes(new Map(indices.map((i, at) => [i, boxes[at]])), before, !burst);
+    }
+  }
+  // Run before LiteGraph's document shortcuts so Delete and selection affect
+  // layout elements while this editor has focus. Workflow undo remains native.
+  window.addEventListener("keydown", onCanvasKeyDown, true);
+  root.addEventListener("keyup", event => event.stopPropagation());
 
   // ------------------------------------------------------------------
   // store sync
@@ -763,6 +973,7 @@ function mountCanvas(node) {
     status.textContent = `${layout.canvas.width} × ${layout.canvas.height} · ${foreground} 个前景元素`;
     refreshObjectOptions(layout);
     updateHistoryButtons();
+    refreshEditButtons();
   }
 
   for (const name of ["width", "height"]) {
@@ -776,12 +987,28 @@ function mountCanvas(node) {
     };
   }
 
+  let lastSnapshot = null;
+  let lastSelection = [];
   layoutStore.register(node, (layout, origin) => {
+    const current = snapshot();
     if (origin !== node.id) {
-      history.length = 0;
-      redo.length = 0;
+      drag = null;
+      guides = [];
+      // A template or an import replaces the whole layout: keep that step
+      // undoable instead of dropping the history the user built up. A selection
+      // notification carries the same layout and must not add an empty step.
+      if (typeof origin === "number" && lastSnapshot && lastSnapshot !== current) {
+        history.push({ layout: lastSnapshot, selection: lastSelection });
+        if (history.length > HISTORY_LIMIT) history.shift();
+        redo.length = 0;
+        nudgeBurst.before = null;
+        updateHistoryButtons();
+      }
       syncSizeWidgets(layout);
     }
+    lastSnapshot = current;
+    lastSelection = layoutStore.selections;
+    if (origin === "configure") snapCheck.checked = node.properties?.moss_snap === true;
     refreshChrome(layout);
     requestDraw();
   });
@@ -789,7 +1016,10 @@ function mountCanvas(node) {
   // Linked backend nodes don't call this node's widget callbacks. Read their
   // current values without replacing upstream widgets or their callbacks.
   const sizeTimer = setInterval(syncInputSize, 150);
-  const observer = typeof ResizeObserver === "function" ? new ResizeObserver(() => requestDraw()) : null;
+  const observer = typeof ResizeObserver === "function" ? new ResizeObserver(() => {
+    viewStale = true;
+    requestDraw();
+  }) : null;
   observer?.observe(stage);
   const originalRemoved = node.onRemoved;
   node.onRemoved = function (...args) {
@@ -799,6 +1029,7 @@ function mountCanvas(node) {
     window.removeEventListener("pointermove", windowMove);
     window.removeEventListener("pointerup", windowUp);
     window.removeEventListener("pointercancel", cancelDrag);
+    window.removeEventListener("keydown", onCanvasKeyDown, true);
     if (frame) cancelAnimationFrame(frame);
     return originalRemoved?.apply(this, args);
   };

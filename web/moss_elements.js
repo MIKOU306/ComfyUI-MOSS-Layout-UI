@@ -4,8 +4,10 @@
 
 import {
   TAGS, TYPES, TAG_TYPE, h, injectStyle, tagColor, padIndex, autosizeTextarea,
-  getLayoutStore, syncFooter, button,
+  getLayoutStore, syncFooter, button, upstreamCanvas,
 } from "./moss_common.js";
+import { positionLocked, selectionUnits } from "./moss_edit.js";
+import { FONT_STYLES, normalizeTypography, textMetrics, wrapText, drawTextPreview } from "./moss_text.js";
 
 const CLASS = "MOSSLayoutElements";
 const STYLE_ID = "moss-layout-elements-style";
@@ -100,6 +102,8 @@ export function mountElements(node) {
   let query = "";
   let filterTag = "";
   let renderedSelection = -2;
+  let renderFrame = 0;
+  let pulseTimer = 0;
 
   const layoutOf = () => layoutStore.get();
   const selectedIndex = () => {
@@ -167,6 +171,41 @@ export function mountElements(node) {
   const textField = labelled("文字内容", textInput);
   textField.classList.add("mle-hidden");
 
+  const fontStyle = h("select", {class:"ml-select mle-font", "aria-label":"字体风格"}, [h("option",{value:"",text:"沿用提示词"}), ...Object.entries(FONT_STYLES).map(([value,text])=>h("option",{value,text}))]);
+  const align = h("select", {class:"ml-select mle-text-align", "aria-label":"文字对齐"}, [["","沿用提示词"],["left","左对齐"],["center","居中"],["right","右对齐"]].map(([value,text])=>h("option",{value,text})));
+  const fontSize = h("input", {class:"ml-num mle-font-size",type:"number",min:1,max:2048,step:1,placeholder:"自动估算", "aria-label":"参考字号"});
+  const lineHeight = h("input", {class:"ml-num mle-line-height",type:"number",min:.5,max:4,step:.1,placeholder:"1.2", "aria-label":"参考行距"});
+  const color = h("input", {class:"mle-text-color",type:"color",value:"#ffffff", "aria-label":"文字颜色"});
+  const useColor = h("input", {class:"mle-use-color",type:"checkbox"});
+  const textPreview = h("canvas", {class:"mle-text-preview",width:420,height:150,style:{width:"100%",height:"150px",objectFit:"contain",background:"#151b25",borderRadius:"6px"}});
+  const capacity = h("div", {class:"ml-muted mle-capacity",role:"status"});
+  let wrapped = null;
+  const undoWrap = button("撤回分行",{className:"mle-undo-wrap",onClick:()=>{
+    if(!wrapped || selectedIndex()!==wrapped.index || selectedElement()?.text!==wrapped.after)return;
+    const before=wrapped.before;wrapped=null;patchSelected(element=>{element.text=before;});
+  }});
+  const wrapButton = button("按框宽分行",{className:"mle-wrap-text",onClick:()=>{
+    const element=selectedElement();if(element?.type!=="text")return;
+    const after=wrapText(element,layoutOf().canvas);wrapped={index:selectedIndex(),before:element.text,after};
+    patchSelected(next=>{next.text=after;});
+  }});
+  const textAssistant = h("div",{class:"mle-text-assistant mle-hidden"},[
+    h("span",{class:"ml-label",text:"文字排版助手 · Enter 手动换行"}),
+    h("div",{class:"mle-grid2"},[labelled("字体风格",fontStyle),labelled("文字对齐",align),labelled("参考字号 / 生成像素",fontSize),labelled("行距倍数",lineHeight)]),
+    h("label",{class:"ml-row",style:{margin:"8px 0"}},[useColor,h("span",{text:"指定文字颜色"}),color]),
+    textPreview,capacity,h("div",{class:"mle-actions"},[wrapButton,undoWrap,button("清除样式",{onClick:()=>patchSelected(element=>{delete element.typography;})})]),
+    h("div",{class:"ml-muted",text:"容量为近似值，预览采用本机字体。样式转为生成描述，最终字体、换行和位置以模型输出为准。"}),
+  ]);
+  function updateTypography() {
+    patchSelected(element=>{
+      if(element.type!=="text")return;
+      const style=normalizeTypography({font_style:fontStyle.value,align:align.value,font_size:fontSize.value,line_height:lineHeight.value,color:useColor.checked?color.value:null});
+      if(style)element.typography=style;else delete element.typography;
+    });
+  }
+  for(const input of [fontStyle,align,fontSize,lineHeight,useColor])input.addEventListener("change",updateTypography);
+  color.addEventListener("input",()=>{useColor.checked=true;updateTypography();});
+
   const numInputs = BOX_LABELS.map(() => h("input", {
     class: "ml-num", type: "text", inputmode: "decimal", spellcheck: "false",
   }));
@@ -193,6 +232,7 @@ export function mountElements(node) {
     ]),
     labelled("提示词 / 内容描述", promptInput),
     textField,
+    textAssistant,
     numRow,
     actionRow,
   ]);
@@ -213,11 +253,12 @@ export function mountElements(node) {
   root.addEventListener("keydown", (event) => event.stopPropagation());
   root.addEventListener("keyup", (event) => event.stopPropagation());
 
-  node.addDOMWidget("moss_elements_ui", "MOSSLayoutElements", root, {
+  const domWidget = node.addDOMWidget("moss_elements_ui", "MOSSLayoutElements", root, {
     serialize: false,
     hideOnZoom: false,
     getMinHeight: () => 520,
   });
+  domWidget.serialize = false;
 
   // ---- editing ------------------------------------------------------------
   function patchSelected(mutate) {
@@ -286,7 +327,7 @@ export function mountElements(node) {
       const index = selectedIndex();
       if (!Number.isFinite(value) || index < 0) return;
       const source = selectedElement();
-      if (!source || source.type === "background") return;
+      if (!source || positionLocked(layoutOf(), index)) return;
       const box = source.box.slice();
       if (part === 0) box[0] = clamp(value, 0, 100 - box[2]);
       else if (part === 1) box[1] = clamp(value, 0, 100 - box[3]);
@@ -317,7 +358,7 @@ export function mountElements(node) {
       const [element] = next.elements.splice(index, 1);
       next.elements.splice(target, 0, element);
     }, node.id);
-    layoutStore.setSelection(target, node.id);
+    layoutStore.selectElement(target, node.id);
   }
 
   function copySelected() {
@@ -325,11 +366,13 @@ export function mountElements(node) {
     const element = selectedElement();
     if (!element || element.type === "background") return;
     const copy = JSON.parse(JSON.stringify(element));
+    delete copy.locked;
+    delete copy.group_id;
     const [left, top, width, height] = element.box;
     copy.name = `${element.name} · 副本`;
     copy.box = [
-      oneDecimal(Math.min(left + 2, 100 - width)),
-      oneDecimal(Math.min(top + 2, 100 - height)),
+      Number(oneDecimal(Math.min(left + 2, 100 - width))),
+      Number(oneDecimal(Math.min(top + 2, 100 - height))),
       width,
       height,
     ];
@@ -344,6 +387,14 @@ export function mountElements(node) {
     const index = selectedIndex();
     const element = selectedElement();
     if (!element || element.type === "background") return;
+    if (layoutStore.selections.length > 1) {
+      const indices = new Set(selectionUnits(layoutOf(), layoutStore.selections, true).flatMap(u => u.indices));
+      if (!indices.size) return;
+      layoutStore.update(layout => { layout.elements = layout.elements.filter((_, i) => !indices.has(i)); }, node.id);
+      layoutStore.setSelection(-1, node.id);
+      return;
+    }
+    if (positionLocked(layoutOf(), index)) return;
     layoutStore.update((layout) => {
       layout.elements.splice(index, 1);
     }, node.id);
@@ -364,17 +415,18 @@ export function mountElements(node) {
       tagFilter.value = "";
       renderList();
     }
-    layoutStore.setSelection(index, node.id);
+    layoutStore.selectElement(index, node.id);
     pulseRow(index);
   }
 
   function pulseRow(index) {
     const row = list.querySelector(`.mle-row[data-index="${index}"]`);
     if (!row) return;
+    clearTimeout(pulseTimer);
     row.classList.remove("is-locate");
     void row.offsetWidth;
     row.classList.add("is-locate");
-    window.setTimeout(() => row.classList.remove("is-locate"), 700);
+    pulseTimer = window.setTimeout(() => row.classList.remove("is-locate"), 700);
   }
 
   // ---- rendering ----------------------------------------------------------
@@ -397,39 +449,64 @@ export function mountElements(node) {
   }
 
   function rowFor(element, index, active) {
+    const idx = h("span", { class: "mle-idx", text: padIndex(index) });
+    const pill = h("span", { class: "mle-pill", text: element.tag });
+    const name = h("span", { class: "mle-name", text: rowLabel(element, index) });
     const row = h("button", {
       type: "button",
       class: active ? "mle-row is-active" : "mle-row",
       "data-index": String(index),
       style: { borderLeftColor: tagColor(element) },
       title: element.prompt || element.name,
-    }, [
-      h("span", { class: "mle-idx", text: padIndex(index) }),
-      h("span", { class: "mle-pill", text: element.tag }),
-      h("span", { class: "mle-name", text: element.name }),
-    ]);
-    row.addEventListener("click", () => {
-      if (layoutStore.selection !== index) layoutStore.setSelection(index, node.id);
+    }, [idx, pill, name]);
+    row.__moss = { pill, name };
+    row.addEventListener("click", event => {
+      layoutStore.selectElement(index, node.id, { toggle: event.shiftKey });
     });
     return row;
   }
 
+  function rowLabel(element, index) {
+    return `${positionLocked(layoutOf(), index) && index > 0 ? "🔒 " : ""}${element.group_id ? "▦ " : ""}${element.name}`;
+  }
+
+  // Typing in the prompt field reruns the whole panel; refresh the row in place
+  // instead of rebuilding the list (and losing its scroll and focus) every key.
+  function paintRow(row, element, index, active) {
+    row.__moss.pill.textContent = element.tag;
+    row.__moss.name.textContent = rowLabel(element, index);
+    row.title = element.prompt || element.name;
+    row.style.borderLeftColor = tagColor(element);
+    row.classList.toggle("is-active", active);
+  }
+
   function renderHeader() {
     const foreground = Math.max(0, layoutOf().elements.length - 1);
-    subtitle.textContent = `已连接画布 · 背景 + ${foreground} 个元素 · 点击条目定位框`;
+    subtitle.textContent = `${upstreamCanvas(node) ? "已连接画布" : "未连接画布 · 当前独立编辑"} · 背景 + ${foreground} 个元素`;
   }
+
+  let renderedEntries = null;
 
   function renderList() {
     const scrollTop = list.scrollTop;
     const entries = visibleEntries();
-    const active = layoutStore.selection;
+    const signature = entries.map((entry) => entry.index).join(",");
+    if (signature === renderedEntries) {
+      const rows = list.querySelectorAll(".mle-row");
+      entries.forEach((entry, at) => {
+        if (rows[at]) paintRow(rows[at], entry.element, entry.index, layoutStore.selections.includes(entry.index));
+      });
+      list.scrollTop = scrollTop;
+      return;
+    }
+    renderedEntries = signature;
     if (!entries.length) {
       list.replaceChildren(h("div", {
         class: "mle-list-empty",
         text: "没有匹配的元素 · 调整搜索或 tag 筛选",
       }));
     } else {
-      list.replaceChildren(...entries.map((entry) => rowFor(entry.element, entry.index, entry.index === active)));
+      list.replaceChildren(...entries.map((entry) => rowFor(entry.element, entry.index, layoutStore.selections.includes(entry.index))));
     }
     list.scrollTop = scrollTop;
   }
@@ -451,7 +528,8 @@ export function mountElements(node) {
     }
 
     const isBackground = element.type === "background";
-    detailHead.textContent = `${padIndex(index)} ${element.name}`;
+    const locked = positionLocked(layout, index);
+    detailHead.textContent = `${padIndex(index)} ${element.name}${locked && !isBackground ? " · 位置已锁定" : ""}`;
     if (force || document.activeElement !== nameInput) nameInput.value = element.name;
     if (force || document.activeElement !== tagSelect) tagSelect.value = element.tag;
     if (force || document.activeElement !== typeSelect) typeSelect.value = element.type;
@@ -467,25 +545,49 @@ export function mountElements(node) {
 
     const isText = element.type === "text";
     textField.classList.toggle("mle-hidden", !isText);
+    textAssistant.classList.toggle("mle-hidden", !isText);
     if (isText && (force || document.activeElement !== textInput)) {
       textInput.value = element.text ?? "";
     }
+    if(isText) {
+      const style=element.typography||{};
+      for(const [input,value] of [[fontStyle,style.font_style||""],[align,style.align||""],[fontSize,style.font_size||""],[lineHeight,style.line_height||""]]) {
+        if(force||document.activeElement!==input)input.value=value;
+      }
+      useColor.checked=Boolean(style.color);color.value=style.color||"#ffffff";
+      const m=textMetrics(element,layout.canvas),ctx=textPreview.getContext("2d"),scale=Math.min(410/m.width,140/m.height);
+      ctx.clearRect(0,0,420,150);const rect={x:(420-m.width*scale)/2,y:(150-m.height*scale)/2,w:m.width*scale,h:m.height*scale};
+      ctx.strokeStyle=m.overflow?"#f59e0b":"#61718b";ctx.strokeRect(rect.x,rect.y,rect.w,rect.h);
+      drawTextPreview(ctx,element,rect,layout.canvas);
+      capacity.textContent=!element.text.trim()?"文字内容为空：此框不会加入生成提示词。":`约可容纳每行 ${m.charsPerLine} 个全角字、${m.maxLines} 行；当前 ${m.lines.length} 行。${m.overflow?"可能溢出，请调整字号、分行或框大小。":""}`;
+      wrapButton.disabled=!element.text.trim();undoWrap.disabled=!(wrapped&&wrapped.index===index&&wrapped.after===element.text&&wrapped.before!==wrapped.after);
+    }
 
     numInputs.forEach((input, part) => {
-      input.disabled = isBackground;
+      input.disabled = locked;
       if (force || document.activeElement !== input) input.value = oneDecimal(element.box[part]);
     });
 
     moveUp.disabled = isBackground || index <= 1;
     moveDown.disabled = isBackground || index >= layout.elements.length - 1;
     copyButton.disabled = isBackground;
-    deleteButton.disabled = isBackground;
+    deleteButton.disabled = isBackground || !selectionUnits(layout, layoutStore.selections, true).length;
+    deleteButton.textContent = layoutStore.selections.length > 1 ? "删除选中" : "删除元素";
   }
 
   function render() {
     renderHeader();
     renderList();
     renderDetail();
+  }
+
+  // One repaint per frame keeps typing smooth; the store notifies on every key.
+  function scheduleRender() {
+    if (renderFrame) return;
+    renderFrame = requestAnimationFrame(() => {
+      renderFrame = 0;
+      render();
+    });
   }
 
   function revealSelection() {
@@ -508,7 +610,7 @@ export function mountElements(node) {
   });
 
   layoutStore.register(node, () => {
-    render();
+    scheduleRender();
   });
 
   // Show the first foreground element by default so the editor is never empty
@@ -520,6 +622,9 @@ export function mountElements(node) {
   const originalRemoved = node.onRemoved;
   node.onRemoved = function (...args) {
     unsubscribeSelection();
+    clearTimeout(pulseTimer);
+    if (renderFrame) cancelAnimationFrame(renderFrame);
+    renderFrame = 0;
     return originalRemoved?.apply(this, args);
   };
 

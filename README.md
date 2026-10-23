@@ -19,22 +19,53 @@
 同一套三个节点按实际连线共享 `moss-layout/v1` 布局，每个画布独立保存，多套排版可以放在同一工作流中（百分比坐标，背景永远在 `elements[0]`、固定 `[0,0,100,100]` 且不参与生成 items）。
 `state` 是隐藏 widget，用来把布局随工作流一起保存；运行时后端也会读它做兜底。
 
+`character_boxes` 输出的是**最终 items 里人物项的序号**（1 起、逗号分隔，例如 `1, 3`；没有人物时为空字符串），与 `MOSSImageLayoutPrompt.character_boxes` 的写法一致。标准提示词节点读到这个列表时，会把对应序号的非文字项按人物编译；不符合该写法的文本（包括 1.2.0 及更早的 JSON 数组）会被忽略，不影响元素自身的类型。
+
 ---
 
 ## 安装
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git moss-layout-ui
+git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git comfyui-moss-layout-ui
 ```
 
-或直接下载 zip 解压到 `ComfyUI/custom_nodes/moss-layout-ui/`，然后：
+或直接下载 zip 解压到 `ComfyUI/custom_nodes/comfyui-moss-layout-ui/`。同一实例只保留一份插件：如果已有旧版手动安装的 `moss-layout-ui`，请先将它移出 `custom_nodes`，避免与 Registry 安装版重复加载。然后：
 
 1. 重启 ComfyUI
 2. 浏览器 **Ctrl+F5** 重载前端
 3. 画布上搜索 `MOSS`，添加三个节点，或导入 `examples/MOSS-layout-poster-INT8.json`
 
-**要求**：ComfyUI 带新版节点 API（`comfy_api.latest`，2025 之后的版本均可）。开发与验证环境 = ComfyUI 0.41.0 / 前端 1.55.18 / Python 3.12。
+**要求**：ComfyUI 提供新版节点 API（`comfy_api.latest`）。开发与验证环境 = ComfyUI 0.41.0 / 前端 1.55.18 / Python 3.12。
+
+### 1.2.1 连线端口、撤销与人物序号
+
+- **连线后端口不再消失**：`layout` / `elements` / `character_boxes` 三个输入改为 22px 窄行，行内显示「已连线 / 未连线」，左侧连接点可以正常看到、连线与断开；`state` 仍完全隐藏。经典节点与 Nodes 2.0 使用同一套行渲染。
+- **布局修改进入 ComfyUI 的撤销与未保存提示**：只改布局也会提示未保存，撤销可回到编辑前；一次连续输入或长按方向键算一步，载入工作流不产生撤销步。
+- **应用模板 / 导入布局可撤销**：不再清空画布撤销历史；模板改动生成尺寸时会明确提示新的宽高。
+- 元素管理节点的 `character_boxes` 改为输出最终 items 中人物项的序号（`1, 3` 这种写法），不再输出 JSON 对象数组；接到 `MOSSImageLayoutPrompt.character_boxes` 不会再被解析成无意义的编号。
+- 标准提示词节点会读取 `character_boxes`：传入 `1, 3` 时把对应序号的非文字项按人物编译；其他写法直接忽略。前端「最终生成词」预览使用同一规则。
+- 只把真正的布局输出当作布局输入，误接其他输出时按未连接处理。
+- 元素面板按帧合并重绘，元素集合不变时只更新行内容；清理定位闪烁定时器；复制元素写入数字坐标。
+- 画布：方向键连按合并为一步撤销、指针移动不再重复测量画布尺寸、新建框最小尺寸与缩放下限一致。
+- DOM 面板不参与序列化，`widgets_values` 不再多存空值；后端预览字体补充 macOS / Linux 候选路径；三个节点增加英文搜索别名。
+
+### 1.2.0 模板库与文字排版助手
+
+- 标准提示词节点新增「布局模板库」：电影海报、电商促销、杂志封面、人物介绍卡；可保存、更新、删除自定义模板，导入 / 导出可分享的 JSON 文件。
+- 元素管理节点的文字元素新增字体风格、颜色、参考字号、行距与对齐；画布和详情面板显示文案预览，支持手动换行、按框宽分行与撤回分行。
+- 新增空文字、容量、断线、跨画布接线、潜空间尺寸不一致及重复安装提示。
+- 修复边缘零尺寸、异常数字导致后端失败、背景排序与合并、空元素列表未清空以及分组重排后选择不完整。
+
+自定义模板保存在**当前浏览器、当前 ComfyUI 地址**，换电脑或换地址请先导出。应用模板后，已连接的宽高输入仍优先。样式转成模型 caption 描述，预览与容量估算不保证最终生成效果。
+
+这是本地 1.2.0 测试版。使用方法见 [模板与文字助手](docs/templates-text.md)，审查与验证范围见 [审查报告](docs/audit-1.2.0.md)。更新后请重启 ComfyUI，再按 Ctrl+F5。
+
+### 1.1.0 画布编辑增强
+
+新增多选、编组、位置锁定、吸附参考线、六种对齐、水平与垂直等距分布、方向键微调。选中多个元素后，可以一起移动和缩放；分组与锁定随工作流保存。现有布局仍可直接导入，模型接线无需改变。
+
+使用方法见 [画布编辑说明](docs/canvas-editing.md)，测试范围见 [验证记录](docs/validation-1.1.0.md)。这是本地测试版，更新后请**重启 ComfyUI，再按 Ctrl+F5**。
 
 ### 1.0.1 更新
 
@@ -47,10 +78,12 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git moss-layout-ui
 
 **① 构图布画**：先选 tag（主体 / 人物 / 文字 / 图片 / 装饰 / 版式），在空白处拖出新框；框内拖动 = 移动，四角手柄 = 缩放；重叠处 `Alt + 点击` 轮选；支持撤销 / 重做（60 步）、新框模板提示词、清空画布。
 画布宽高可接 `PrimitiveInt` 联动（支持 `PrimitiveInt`、前端 `PrimitiveNode`、`Reroute`），元素保留百分比位置，改尺寸不用重排。
-「清空画布」只删除前景，保留全局描述、背景和尺寸，可撤销与重做。
+「清空画布」只删除未锁定的前景，保留已锁定元素、全局描述、背景和尺寸，可撤销与重做。
+
+按住 **Shift 点击**增减选择；在「选择 / 移动」模式下拖空白处框选（框选模式下按住 Shift 也可框选）。**Ctrl+G** 编组、**Ctrl+Shift+G** 解组；方向键微移 `0.1%`，Shift+方向键移 `1%`。打开「吸附」可显示参考线，按住 Ctrl 临时跳过。画布内的小步编辑用面板的撤销 / 重做按钮；布局修改同时会记入 ComfyUI 的全局撤销，所以只用全局撤销也能回到编辑前的布局，并且只改布局时关闭标签页会提示未保存。
 
 **② 元素管理**：搜索（编号 / 名称 / tag / 提示词）、按 tag 筛选、改名称 / tag / 生成类型 / 提示词 / 左上宽高四个百分比；上移、下移、复制、删除。
-生成类型选「文字」时必须填**文字内容**，否则该元素会按普通物体处理。文字内容支持多行，编辑、保存与最终提示词会保留换行。
+生成类型选「文字」时请填写**文字内容**；空文字框会显示提示并从生成词中跳过，布局仍保留该框。文字内容支持多行，编辑、保存与最终提示词会保留换行。
 
 **③ 标准提示词**：写全局提示词（整张图的场景 / 风格 / 光 / 阅读顺序）；粘贴标准 JSON 后点「导入新布局」或「合并并保留修改」；「导出回输入框」把当前布局导出成可编辑 JSON；底部两个 tab 在「当前标准 JSON / 最终生成词」之间切换，可一键复制。
 
@@ -83,15 +116,13 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git moss-layout-ui
 
 ---
 
-## 硬规则（不然出图会歪）
+## 排版建议
 
-1. **框只表示位置，外观写在提示词里**。不要写「请把电视放在左上角」这类指令，框就是位置指令。
-2. **一个元素一个框**。两个物体塞一个框会被融合成一个。
-3. **人物框至少占画布宽度 65%**（单主体构图时）；框太窄会把躯干拉长、四肢挤在一起。
-4. **文字框宁大勿小**，但别大到离谱：中文单行容量 ≈ `框宽 ÷ 字高` 个字。框远大于字量时，模型会把文案重复铺满整条框。
-5. **文字框离画布边缘 ≥60px**，贴边容易诱发「台面 / 前景条」。
-6. **姿势只写一次**（放全局提示词），元素提示词只写外观，两处都写动作必然打架。
-7. 液体 / 汗渍 / 痕迹这类**不要单开 object 框**（会被画成一块深色遮挡物），写进对应 character 的提示词里。
+框表达位置和占用区域，caption 描述外观与风格，text 保存准确文案。多个独立主体通常应分成不同元素；整体描述与元素描述尽量保持一致。
+
+文字过长时可手动换行、减小参考字号或扩大文字框。容量检查是排版估算，没有通用的「人物必须占宽 65%」或「文字必须距边缘 60 像素」硬限制。
+
+模型的布局功能与手动换行格式见 [MOSS 官方用户指南](https://github.com/OpenMOSS/MOSS-Image/blob/main/USERGUIDE_ZH.md#layout-prompt实验性功能)。插件的字体设置会转成 caption 中的文字描述，不会向模型添加自定义字体参数。
 
 ---
 
@@ -107,7 +138,7 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git moss-layout-ui
 
 Three nodes for MOSS-Image layout posters: draw boxes on a canvas, describe each element, and get the official `summary/items` JSON that MOSS consumes (`abs_centralized` / `yxyx`).
 
-1. Copy this folder into `ComfyUI/custom_nodes/moss-layout-ui`.
+1. Copy this folder into `ComfyUI/custom_nodes/comfyui-moss-layout-ui`. Remove older duplicate copies from `custom_nodes` before restarting.
 2. Restart ComfyUI and hard-reload the frontend (**Ctrl+F5**).
 3. Import `examples/MOSS-layout-poster-INT8.json`, or add the three `MOSS ...` nodes from the node menu.
 4. Wire `标准提示词 (StandardPrompt).prompt` into the positive `CLIPTextEncode.text`, and set the empty latent size to the same canvas size.
@@ -115,6 +146,10 @@ Three nodes for MOSS-Image layout posters: draw boxes on a canvas, describe each
 Layout is stored in percent coordinates, so changing the canvas size never requires re-laying-out boxes. Requires a ComfyUI build with the new node API (`comfy_api.latest`).
 
 Version 1.0.1 isolates separate canvas chains, includes background descriptions in the compiled caption, preserves multiline text, and keeps background/global descriptions when clearing foreground boxes. Restart ComfyUI and hard-reload the browser after updating. See [validation](docs/validation-1.0.1.md) for the tested scope.
+
+Version 1.1.0 adds Shift multi-selection, marquee selection, grouping (Ctrl+G / Ctrl+Shift+G), position locks, optional snapping, alignment, distribution and arrow-key nudging. Groups and locks persist in workflows and are excluded from the compiled model prompt. Use the canvas undo/redo buttons for canvas edits. See [editing controls](docs/canvas-editing.md) and [validation](docs/validation-1.1.0.md). This version is a local preview.
+
+Version 1.2.0 adds four built-in layouts, browser-local custom templates with JSON import/export, text previews, typography descriptions, wrapping and capacity checks. Workflow diagnostics highlight disconnected/mixed canvases, dimension mismatches and duplicate installations. Empty text boxes remain editable but are skipped in the model prompt. Typography is stored as optional editor metadata and compiled into ordinary captions. See [usage](docs/templates-text.md) and [audit](docs/audit-1.2.0.md).
 
 ---
 

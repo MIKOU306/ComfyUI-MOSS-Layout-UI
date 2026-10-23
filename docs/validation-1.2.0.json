@@ -1,0 +1,2040 @@
+{
+  "version": "1.2.0",
+  "date": "2026-10-23",
+  "status": "local-preview-validated",
+  "browser_and_backend_checks": 95,
+  "cross_language_cases": 14,
+  "python_unit_tests": 3,
+  "geometry_tests": "passed",
+  "javascript_syntax": "passed",
+  "registry_local_validation": "passed",
+  "backend_successful_runs": 7,
+  "moss_image_inference_tested": false,
+  "runtime_sha256": {
+    "__init__.py": "bdf9f67c83cb46b063c0aa321c821b9f6d23cbd60644c3e200c8cb8327a44969",
+    "nodes.py": "3b82b7f13114ef061b90c6ea2efaf763fe212365badb159b47f82fb3849f166a",
+    "layout_schema.py": "dc891aa277fa8241ee162295be4adf2d896150de0069843040a23070e86ebaa1",
+    "web/moss_canvas.js": "b713a6da7fc5aeab8ed2c602be9bca18c685031c4734a59daa635e4180d991c6",
+    "web/moss_checks.js": "b22e8056d17e967c9cb63bf1dcd8f785454b7377e0a80db036702c8101d2c6cc",
+    "web/moss_common.js": "f0bb1a702629a236e8da60874bba413148454ef273d67bb827969369465382b8",
+    "web/moss_edit.js": "e4a911be1ce05276271e7bc1bb7aa5393ee73b2b83695c8aeff317279f7e6957",
+    "web/moss_elements.js": "3b13b42aeddbd4d0de332dac4ad844c3af34ce209ac2c17558d5210d849389dd",
+    "web/moss_prompt.js": "f8fbc17e22b2d60f60ec4ec26f4c45f8330374e835c3c12cf7a373ebb17e43e1",
+    "web/moss_templates.js": "6f36551115ebce4228f2e23b0dbaa068e8e162aacc5e40c5594725b7217f0534",
+    "web/moss_text.js": "31406620a11f81164e59fca34ea4d9a1616fa9cc677c422bb48165011ae71307"
+  },
+  "reports": {
+    "canvas-editor": {
+      "checks": [
+        {
+          "label": "Shift-click selects two elements",
+          "pass": true,
+          "details": [
+            1,
+            2
+          ]
+        },
+        {
+          "label": "multi-drag has equal delta without changing sizes",
+          "pass": true,
+          "details": [
+            [
+              15,
+              13,
+              15,
+              12
+            ],
+            [
+              40,
+              28,
+              15,
+              12
+            ]
+          ]
+        },
+        {
+          "label": "multi-drag undo",
+          "pass": true,
+          "details": [
+            10,
+            10,
+            15,
+            12
+          ]
+        },
+        {
+          "label": "multi-drag redo",
+          "pass": true,
+          "details": [
+            40,
+            28,
+            15,
+            12
+          ]
+        },
+        {
+          "label": "Ctrl+G persists a shared group",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                15,
+                13,
+                15,
+                12
+              ],
+              "prompt": "A clear rectangle.",
+              "group_id": "group-mvjwxss5-h25k9yx2dv"
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                40,
+                28,
+                15,
+                12
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行",
+              "group_id": "group-mvjwxss5-h25k9yx2dv"
+            }
+          ]
+        },
+        {
+          "label": "clicking a grouped member selects the group",
+          "pass": true,
+          "details": [
+            1,
+            2
+          ]
+        },
+        {
+          "label": "group moves as a whole",
+          "pass": true,
+          "details": [
+            [
+              18,
+              15,
+              15,
+              12
+            ],
+            [
+              43,
+              30,
+              15,
+              12
+            ]
+          ]
+        },
+        {
+          "label": "group resize scales both members and internal offsets",
+          "pass": true,
+          "details": [
+            [
+              18,
+              15,
+              18.8,
+              16.4
+            ],
+            [
+              49.3,
+              35.6,
+              18.8,
+              16.4
+            ]
+          ]
+        },
+        {
+          "label": "lock covers the selected group",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                18,
+                15,
+                18.8,
+                16.4
+              ],
+              "prompt": "A clear rectangle.",
+              "locked": true,
+              "group_id": "group-mvjwxss5-h25k9yx2dv"
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                49.3,
+                35.6,
+                18.8,
+                16.4
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行",
+              "locked": true,
+              "group_id": "group-mvjwxss5-h25k9yx2dv"
+            }
+          ]
+        },
+        {
+          "label": "locked group resists drag, nudge and deletion",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                18,
+                15,
+                18.8,
+                16.4
+              ],
+              "prompt": "A clear rectangle.",
+              "locked": true,
+              "group_id": "group-mvjwxss5-h25k9yx2dv"
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                49.3,
+                35.6,
+                18.8,
+                16.4
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行",
+              "locked": true,
+              "group_id": "group-mvjwxss5-h25k9yx2dv"
+            }
+          ]
+        },
+        {
+          "label": "inspector coordinate inputs respect lock",
+          "pass": true,
+          "details": true
+        },
+        {
+          "label": "unlock and Ctrl+Shift+G ungroup",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                18,
+                15,
+                18.8,
+                16.4
+              ],
+              "prompt": "A clear rectangle."
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                49.3,
+                35.6,
+                18.8,
+                16.4
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行"
+            }
+          ]
+        },
+        {
+          "label": "undo restores grouping",
+          "pass": true,
+          "details": {
+            "name": "A",
+            "tag": "主体",
+            "type": "object",
+            "box": [
+              18,
+              15,
+              18.8,
+              16.4
+            ],
+            "prompt": "A clear rectangle.",
+            "group_id": "group-mvjwxss5-h25k9yx2dv"
+          }
+        },
+        {
+          "label": "redo removes grouping again",
+          "pass": true,
+          "details": {
+            "name": "A",
+            "tag": "主体",
+            "type": "object",
+            "box": [
+              18,
+              15,
+              18.8,
+              16.4
+            ],
+            "prompt": "A clear rectangle."
+          }
+        },
+        {
+          "label": "empty-space marquee selects intersecting elements",
+          "pass": true,
+          "details": [
+            1,
+            2
+          ]
+        },
+        {
+          "label": "arrow 0.1% and Shift-arrow 1% move all selected members",
+          "pass": true,
+          "details": [
+            [
+              10.1,
+              11,
+              15,
+              12
+            ],
+            [
+              35.1,
+              26,
+              15,
+              12
+            ]
+          ]
+        },
+        {
+          "label": "multi-drag clamps entire selection at edges",
+          "pass": true,
+          "details": [
+            [
+              60,
+              0,
+              15,
+              12
+            ],
+            [
+              85,
+              15,
+              15,
+              12
+            ]
+          ]
+        },
+        {
+          "label": "Escape cancels an in-progress multi-drag",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                10,
+                10,
+                15,
+                12
+              ],
+              "prompt": "A clear rectangle."
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                35,
+                25,
+                15,
+                12
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行"
+            }
+          ]
+        },
+        {
+          "label": "alignment/distribution: 左对齐",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                10,
+                25,
+                15,
+                12
+              ],
+              [
+                10,
+                45,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                10,
+                25,
+                15,
+                12
+              ],
+              [
+                10,
+                45,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 左对齐",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 水平居中",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                42.5,
+                10,
+                15,
+                12
+              ],
+              [
+                42.5,
+                25,
+                15,
+                12
+              ],
+              [
+                40,
+                45,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                42.5,
+                10,
+                15,
+                12
+              ],
+              [
+                42.5,
+                25,
+                15,
+                12
+              ],
+              [
+                40,
+                45,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 水平居中",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 右对齐",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                75,
+                10,
+                15,
+                12
+              ],
+              [
+                75,
+                25,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                75,
+                10,
+                15,
+                12
+              ],
+              [
+                75,
+                25,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 右对齐",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 顶对齐",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                35,
+                10,
+                15,
+                12
+              ],
+              [
+                70,
+                10,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                35,
+                10,
+                15,
+                12
+              ],
+              [
+                70,
+                10,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 顶对齐",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 垂直居中",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                10,
+                29,
+                15,
+                12
+              ],
+              [
+                35,
+                29,
+                15,
+                12
+              ],
+              [
+                70,
+                27.5,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                10,
+                29,
+                15,
+                12
+              ],
+              [
+                35,
+                29,
+                15,
+                12
+              ],
+              [
+                70,
+                27.5,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 垂直居中",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 底对齐",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                10,
+                48,
+                15,
+                12
+              ],
+              [
+                35,
+                48,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                10,
+                48,
+                15,
+                12
+              ],
+              [
+                35,
+                48,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 底对齐",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 水平等距",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                40,
+                25,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                40,
+                25,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 水平等距",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment/distribution: 垂直等距",
+          "pass": true,
+          "details": {
+            "actual": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                35,
+                27.5,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ],
+            "expected": [
+              [
+                10,
+                10,
+                15,
+                12
+              ],
+              [
+                35,
+                27.5,
+                15,
+                12
+              ],
+              [
+                70,
+                45,
+                20,
+                15
+              ]
+            ]
+          }
+        },
+        {
+          "label": "undo: 垂直等距",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              70,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "single object aligns to canvas center",
+          "pass": true,
+          "details": [
+            42.5,
+            44,
+            15,
+            12
+          ]
+        },
+        {
+          "label": "alignment treats a group as one unit",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              10,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "alignment leaves locked objects untouched",
+          "pass": true,
+          "details": [
+            [
+              10,
+              10,
+              15,
+              12
+            ],
+            [
+              35,
+              25,
+              15,
+              12
+            ],
+            [
+              10,
+              45,
+              20,
+              15
+            ]
+          ]
+        },
+        {
+          "label": "one locked group member protects the entire group",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                10,
+                10,
+                15,
+                12
+              ],
+              "prompt": "A clear rectangle.",
+              "group_id": "group-mvjwy6xc-1ov7yn3ed4"
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                35,
+                25,
+                15,
+                12
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行",
+              "locked": true,
+              "group_id": "group-mvjwy6xc-1ov7yn3ed4"
+            }
+          ]
+        },
+        {
+          "label": "snapping aligns edges/centers and paints guides",
+          "pass": true,
+          "details": {
+            "actual": [
+              20,
+              25,
+              15,
+              12
+            ],
+            "guidePixels": 47
+          }
+        },
+        {
+          "label": "Ctrl temporarily bypasses snapping",
+          "pass": true,
+          "details": [
+            19.4,
+            24.4,
+            15,
+            12
+          ]
+        },
+        {
+          "label": "locking geometry preserves text editing",
+          "pass": true,
+          "details": {
+            "name": "B",
+            "tag": "文字",
+            "type": "text",
+            "box": [
+              35,
+              25,
+              15,
+              12
+            ],
+            "prompt": "A clear title.",
+            "text": "锁定后仍可编辑\n第二行",
+            "locked": true,
+            "group_id": "group-mvjwy7fi-d7feh34hep"
+          }
+        },
+        {
+          "label": "text field Ctrl+A does not select every layout element",
+          "pass": true,
+          "details": [
+            1,
+            2
+          ]
+        },
+        {
+          "label": "copy of locked grouped element is independent and editable",
+          "pass": true,
+          "details": {
+            "name": "B · 副本",
+            "tag": "文字",
+            "type": "text",
+            "box": [
+              37,
+              27,
+              15,
+              12
+            ],
+            "prompt": "A clear title.",
+            "text": "锁定后仍可编辑\n第二行"
+          }
+        },
+        {
+          "label": "Ctrl+A/Delete removes only unlocked elements and keeps ComfyUI nodes",
+          "pass": true,
+          "details": {
+            "schema": "moss-layout/v1",
+            "coordinate_system": "percent_xywh",
+            "canvas": {
+              "width": 1024,
+              "height": 1024
+            },
+            "global_prompt": "Canvas editor regression",
+            "elements": [
+              {
+                "name": "背景",
+                "tag": "固定",
+                "type": "background",
+                "box": [
+                  0,
+                  0,
+                  100,
+                  100
+                ],
+                "prompt": "Dark blue background."
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "locked": true
+              }
+            ]
+          }
+        },
+        {
+          "label": "batch-delete undo restores all elements",
+          "pass": true,
+          "details": 7
+        },
+        {
+          "label": "clear preserves locked foreground and background descriptions",
+          "pass": true,
+          "details": {
+            "schema": "moss-layout/v1",
+            "coordinate_system": "percent_xywh",
+            "canvas": {
+              "width": 1024,
+              "height": 1024
+            },
+            "global_prompt": "Canvas editor regression",
+            "elements": [
+              {
+                "name": "背景",
+                "tag": "固定",
+                "type": "background",
+                "box": [
+                  0,
+                  0,
+                  100,
+                  100
+                ],
+                "prompt": "Dark blue background."
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "locked": true
+              }
+            ]
+          }
+        },
+        {
+          "label": "clear undo restores all elements",
+          "pass": true,
+          "details": 7
+        },
+        {
+          "label": "three nodes serialize matching groups and locks",
+          "pass": true,
+          "details": [
+            [
+              {
+                "name": "A",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  10,
+                  10,
+                  15,
+                  12
+                ],
+                "prompt": "A clear rectangle.",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "C",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  70,
+                  45,
+                  20,
+                  15
+                ],
+                "prompt": "A clear rectangle.",
+                "locked": true
+              }
+            ],
+            [
+              {
+                "name": "A",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  10,
+                  10,
+                  15,
+                  12
+                ],
+                "prompt": "A clear rectangle.",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "C",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  70,
+                  45,
+                  20,
+                  15
+                ],
+                "prompt": "A clear rectangle.",
+                "locked": true
+              }
+            ],
+            [
+              {
+                "name": "A",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  10,
+                  10,
+                  15,
+                  12
+                ],
+                "prompt": "A clear rectangle.",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "C",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  70,
+                  45,
+                  20,
+                  15
+                ],
+                "prompt": "A clear rectangle.",
+                "locked": true
+              }
+            ]
+          ]
+        },
+        {
+          "label": "workflow reload retains group and lock metadata",
+          "pass": true,
+          "details": {
+            "schema": "moss-layout/v1",
+            "coordinate_system": "percent_xywh",
+            "canvas": {
+              "width": 1024,
+              "height": 1024
+            },
+            "global_prompt": "Canvas editor regression",
+            "elements": [
+              {
+                "name": "背景",
+                "tag": "固定",
+                "type": "background",
+                "box": [
+                  0,
+                  0,
+                  100,
+                  100
+                ],
+                "prompt": "Dark blue background."
+              },
+              {
+                "name": "A",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  10,
+                  10,
+                  15,
+                  12
+                ],
+                "prompt": "A clear rectangle.",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "C",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  70,
+                  45,
+                  20,
+                  15
+                ],
+                "prompt": "A clear rectangle.",
+                "locked": true
+              },
+              {
+                "name": "D",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  15,
+                  70,
+                  12,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "E",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  45,
+                  70,
+                  18,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "F",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  75,
+                  80,
+                  12,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              }
+            ]
+          }
+        },
+        {
+          "label": "snap preference survives reload",
+          "pass": true,
+          "details": true
+        },
+        {
+          "label": "reloaded group still selects as a unit",
+          "pass": true,
+          "details": [
+            2,
+            1
+          ]
+        },
+        {
+          "label": "reloaded lock still protects inspector coordinates",
+          "pass": true,
+          "details": true
+        },
+        {
+          "label": "real backend preserves editing metadata in standard layout",
+          "pass": true,
+          "details": [
+            {
+              "name": "A",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                10,
+                10,
+                15,
+                12
+              ],
+              "prompt": "A clear rectangle.",
+              "group_id": "group-mvjwywe9-ckv8jhmt2k"
+            },
+            {
+              "name": "B",
+              "tag": "文字",
+              "type": "text",
+              "box": [
+                35,
+                25,
+                15,
+                12
+              ],
+              "prompt": "A clear title.",
+              "text": "第一行\n第二行",
+              "group_id": "group-mvjwywe9-ckv8jhmt2k"
+            },
+            {
+              "name": "C",
+              "tag": "主体",
+              "type": "object",
+              "box": [
+                70,
+                45,
+                20,
+                15
+              ],
+              "prompt": "A clear rectangle.",
+              "locked": true
+            }
+          ]
+        },
+        {
+          "label": "model prompt has matching bboxes and no editing metadata",
+          "pass": true,
+          "details": {
+            "summary": {
+              "caption": "Canvas editor regression\nDark blue background."
+            },
+            "items": [
+              {
+                "label": "object",
+                "caption": "A clear rectangle.",
+                "bbox": [
+                  -410,
+                  -410,
+                  -286,
+                  -256
+                ]
+              },
+              {
+                "label": "text",
+                "caption": "A clear title.",
+                "bbox": [
+                  -256,
+                  -154,
+                  -133,
+                  0
+                ],
+                "text": "第一行\n第二行"
+              },
+              {
+                "label": "object",
+                "caption": "A clear rectangle.",
+                "bbox": [
+                  -52,
+                  204,
+                  103,
+                  410
+                ]
+              },
+              {
+                "label": "object",
+                "caption": "A clear rectangle.",
+                "bbox": [
+                  204,
+                  -359,
+                  308,
+                  -235
+                ]
+              },
+              {
+                "label": "object",
+                "caption": "A clear rectangle.",
+                "bbox": [
+                  204,
+                  -52,
+                  308,
+                  134
+                ]
+              },
+              {
+                "label": "object",
+                "caption": "A clear rectangle.",
+                "bbox": [
+                  307,
+                  256,
+                  410,
+                  379
+                ]
+              }
+            ],
+            "bbox_coord_space": "abs_centralized",
+            "bbox_format": "yxyx"
+          }
+        },
+        {
+          "label": "editing one grouped chain leaves other chain unchanged",
+          "pass": true,
+          "details": {
+            "schema": "moss-layout/v1",
+            "coordinate_system": "percent_xywh",
+            "canvas": {
+              "width": 1024,
+              "height": 1024
+            },
+            "global_prompt": "独立布局 B：完全不同的文字海报。",
+            "elements": [
+              {
+                "name": "背景",
+                "tag": "固定",
+                "type": "background",
+                "box": [
+                  0,
+                  0,
+                  100,
+                  100
+                ],
+                "prompt": "原始背景描述。"
+              },
+              {
+                "name": "B 的文字",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  55,
+                  60,
+                  40,
+                  20
+                ],
+                "prompt": "清晰的中文标题，两行排列。",
+                "text": "SECOND CHAIN"
+              }
+            ]
+          }
+        },
+        {
+          "label": "dimension change keeps group, lock and percentage positions",
+          "pass": true,
+          "details": {
+            "schema": "moss-layout/v1",
+            "coordinate_system": "percent_xywh",
+            "canvas": {
+              "width": 1344,
+              "height": 768
+            },
+            "global_prompt": "Canvas editor regression",
+            "elements": [
+              {
+                "name": "背景",
+                "tag": "固定",
+                "type": "background",
+                "box": [
+                  0,
+                  0,
+                  100,
+                  100
+                ],
+                "prompt": "Dark blue background."
+              },
+              {
+                "name": "A",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  11,
+                  10,
+                  15,
+                  12
+                ],
+                "prompt": "A clear rectangle.",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  36,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行",
+                "group_id": "group-mvjwywe9-ckv8jhmt2k"
+              },
+              {
+                "name": "C",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  70,
+                  45,
+                  20,
+                  15
+                ],
+                "prompt": "A clear rectangle.",
+                "locked": true
+              },
+              {
+                "name": "D",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  15,
+                  70,
+                  12,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "E",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  45,
+                  70,
+                  18,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "F",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  75,
+                  80,
+                  12,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              }
+            ]
+          }
+        },
+        {
+          "label": "old v1 layouts remain unlocked and ungrouped",
+          "pass": true,
+          "details": {
+            "schema": "moss-layout/v1",
+            "coordinate_system": "percent_xywh",
+            "canvas": {
+              "width": 1024,
+              "height": 1024
+            },
+            "global_prompt": "Canvas editor regression",
+            "elements": [
+              {
+                "name": "背景",
+                "tag": "固定",
+                "type": "background",
+                "box": [
+                  0,
+                  0,
+                  100,
+                  100
+                ],
+                "prompt": "Dark blue background."
+              },
+              {
+                "name": "A",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  10,
+                  10,
+                  15,
+                  12
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "B",
+                "tag": "文字",
+                "type": "text",
+                "box": [
+                  35,
+                  25,
+                  15,
+                  12
+                ],
+                "prompt": "A clear title.",
+                "text": "第一行\n第二行"
+              },
+              {
+                "name": "C",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  70,
+                  45,
+                  20,
+                  15
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "D",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  15,
+                  70,
+                  12,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "E",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  45,
+                  70,
+                  18,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              },
+              {
+                "name": "F",
+                "tag": "主体",
+                "type": "object",
+                "box": [
+                  75,
+                  80,
+                  12,
+                  10
+                ],
+                "prompt": "A clear rectangle."
+              }
+            ]
+          }
+        }
+      ],
+      "backend": {
+        "prompt_id": "0e54e229-9e35-400d-b7ae-a8bd5f2ed327",
+        "status": "success"
+      }
+    },
+    "audit-feature": {
+      "checks": [
+        {
+          "label": "four built-in templates",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "template application reaches canvas with native dimensions",
+          "pass": true,
+          "details": {
+            "width": 1088,
+            "height": 1920
+          }
+        },
+        {
+          "label": "save custom template",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "custom template update is retained",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "template persists when widgets are reconstructed",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "template JSON export/import roundtrip",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "invalid template leaves library intact",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "storage failure is visible without false success",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "delete custom template preserves canvas",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "typography controls and manual newlines persist",
+          "pass": true,
+          "details": {
+            "font_style": "serif",
+            "color": "#ff5500",
+            "align": "right",
+            "font_size": 96,
+            "line_height": 1.4
+          }
+        },
+        {
+          "label": "canvas preview changes when text style changes",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "text capacity warns about overflow",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "wrap inserts linebreaks without losing characters",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "wrap can be reverted",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "styles compile into caption, not extra model fields",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "workflow reload retains typography and text",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "empty text warning and exclusion",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "invalid layout import preserves draft",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "merge without background preserves background and omitted text",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "real latent/sampler graph reports dimension mismatch",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "dimension warning clears after correction",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "disconnected prompt shows actionable status",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "linked size inputs remain authoritative on import",
+          "pass": true,
+          "details": {
+            "width": 1024,
+            "height": 1024
+          }
+        },
+        {
+          "label": "mixed canvas wiring is detected",
+          "pass": true,
+          "details": null
+        }
+      ]
+    },
+    "audit-backend": {
+      "checks": [
+        {
+          "label": "real three-node backend: 电影海报 · 月港夜航",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "real three-node backend: 电商促销 · 夏日气泡",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "real three-node backend: 杂志封面 · 城市漫游",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "real three-node backend: 人物介绍卡 · 创作者",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "explicit empty elements clears stale foreground",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "real canvas execution accepts edge boxes and late background",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "built-in templates fit their text boxes",
+          "pass": true,
+          "details": null
+        },
+        {
+          "label": "simulated duplicate extension list produces actionable warning",
+          "pass": true,
+          "details": null
+        }
+      ],
+      "backend_runs": [
+        {
+          "id": "0d011120-4206-4ad1-b539-fcb472a42037",
+          "status": "success"
+        },
+        {
+          "id": "5156ef21-edbf-440e-878d-0a500cb8ba77",
+          "status": "success"
+        },
+        {
+          "id": "3a796ba4-5869-41ea-9f67-d27e77fb36f4",
+          "status": "success"
+        },
+        {
+          "id": "a0450e70-596a-4db0-ba1f-29cde8f8ecac",
+          "status": "success"
+        },
+        {
+          "id": "4212efa5-3636-4436-8730-9cc6f7abbd9f",
+          "status": "success"
+        },
+        {
+          "id": "a2404411-047d-437e-8c93-b4e9827c470d",
+          "status": "success"
+        }
+      ]
+    },
+    "audit-extra": {
+      "checks": [
+        {
+          "label": "moving a grouped member retains whole-group selection",
+          "pass": true
+        },
+        {
+          "label": "locating grouped member retains whole-group selection",
+          "pass": true
+        },
+        {
+          "label": "custom template survives full page reload",
+          "pass": true
+        },
+        {
+          "label": "corrupt library displays recovery message",
+          "pass": true
+        },
+        {
+          "label": "saving does not overwrite corrupt library",
+          "pass": true
+        },
+        {
+          "label": "corrupt template library does not destroy current canvas",
+          "pass": true
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "No MOSS model image inference performed.",
+    "Font preview and text capacity are approximations.",
+    "Complex dynamic latent dimensions require manual verification.",
+    "Custom templates are browser-local; export JSON for sharing."
+  ]
+}

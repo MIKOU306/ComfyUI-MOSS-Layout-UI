@@ -1,4 +1,5 @@
 import json
+import re
 
 import numpy as np
 import torch
@@ -8,11 +9,19 @@ from . import layout_schema
 
 CATEGORY = "MOSS Layout"
 STATE_TOOLTIP = "Layout JSON written by the node UI and saved with the workflow."
+CHARACTER_BOXES = re.compile(r"\s*\d+(?:\s*,\s*\d+)*\s*")
 
 
 def _to_image(image):
     array = np.asarray(image, dtype=np.float32) / 255.0
     return torch.from_numpy(array)[None,]
+
+
+def _characters(raw):
+    """Positions from a "1, 3" list; any other text is ignored."""
+    if not isinstance(raw, str) or CHARACTER_BOXES.fullmatch(raw) is None:
+        return set()
+    return {int(value) for value in re.findall(r"\d+", raw)}
 
 
 def _layout_from(*raw_values, width=layout_schema.DEFAULT_WIDTH, height=layout_schema.DEFAULT_HEIGHT):
@@ -31,6 +40,7 @@ class MOSSLayoutCanvas(io.ComfyNode):
             category=CATEGORY,
             description="Draw the percent XYWH poster layout and emit it as moss-layout JSON "
                         "together with a rendered preview.",
+            search_aliases=["MOSS layout", "layout canvas", "poster layout"],
             inputs=[
                 io.Int.Input("width", default=layout_schema.DEFAULT_WIDTH,
                              min=layout_schema.MIN_CANVAS, max=layout_schema.MAX_CANVAS, step=16),
@@ -57,7 +67,8 @@ class MOSSLayoutElements(io.ComfyNode):
             display_name="MOSS 元素管理 · 定位 / 提示词",
             category=CATEGORY,
             description="Inspect and edit every layout element; emits the element list and the "
-                        "character boxes.",
+                        "1-based item positions of the characters.",
+            search_aliases=["MOSS layout", "layout elements", "element editor"],
             inputs=[
                 io.String.Input("layout", multiline=True, default=""),
                 io.String.Input("state", multiline=True, default="", tooltip=STATE_TOOLTIP),
@@ -81,10 +92,13 @@ class MOSSLayoutStandardPrompt(io.ComfyNode):
             category=CATEGORY,
             description="Merge the canvas layout and the element list into the standard "
                         "moss-layout JSON and the final MOSS-Image prompt.",
+            search_aliases=["MOSS layout", "layout prompt", "poster prompt"],
             inputs=[
                 io.String.Input("layout", multiline=True, default=""),
                 io.String.Input("elements", multiline=True, default=""),
-                io.String.Input("character_boxes", multiline=True, default=""),
+                io.String.Input("character_boxes", multiline=True, default="",
+                                tooltip="Item positions to compile as characters, e.g. \"1, 3\". "
+                                        "Empty keeps the element types."),
                 io.String.Input("state", multiline=True, default="", tooltip=STATE_TOOLTIP),
             ],
             outputs=[io.String.Output("prompt"), io.String.Output("standard_prompt")],
@@ -95,11 +109,12 @@ class MOSSLayoutStandardPrompt(io.ComfyNode):
         draft = _layout_from(layout, state)
         if isinstance(elements, str) and elements.strip():
             value = json.loads(elements)
-            if isinstance(value, list) and value:
-                draft = layout_schema.normalize_layout(
-                    {**draft, "elements": value},
-                    draft["canvas"]["width"], draft["canvas"]["height"])
-        prompt, standard = layout_schema.compile_prompt(draft)
+            if not isinstance(value, list):
+                raise ValueError("elements 必须是 JSON 数组。")
+            draft = layout_schema.normalize_layout(
+                {**draft, "elements": value},
+                draft["canvas"]["width"], draft["canvas"]["height"])
+        prompt, standard = layout_schema.compile_prompt(draft, _characters(character_boxes))
         return io.NodeOutput(prompt, standard)
 
 
