@@ -38,6 +38,13 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git comfyui-moss-la
 
 **要求**：ComfyUI 提供新版节点 API（`comfy_api.latest`）。开发与验证环境 = ComfyUI 0.41.0 / 前端 1.55.18 / Python 3.12。
 
+### 1.3.0 官方可选字段与坐标精度
+
+- 补齐官方可选字段：`summary.meta` / `summary.canvas` / `summary.palette` 与元素 `tags` / `palette`，全部直接编译进模型提示词（不填就不下发）。
+- 支持导入官方 `width/height + abs/xyxy` 草稿，新增「导出官方草稿」。
+- 坐标精度 0.1% → 0.01%，编译时吸附整像素：bbox 与官方参考编译器逐值一致，此前有 0–1px 偏差。
+- 画布提示 tag 与模型 label 的关系：只有人物、文字单独成类，其余按物体下发，额外语义写进 tags。
+
 ### 1.2.1 连线端口、撤销与人物序号
 
 - **连线后端口不再消失**：`layout` / `elements` / `character_boxes` 三个输入改为 22px 窄行，行内显示「已连线 / 未连线」，左侧连接点可以正常看到、连线与断开；`state` 仍完全隐藏。经典节点与 Nodes 2.0 使用同一套行渲染。
@@ -85,7 +92,7 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git comfyui-moss-la
 **② 元素管理**：搜索（编号 / 名称 / tag / 提示词）、按 tag 筛选、改名称 / tag / 生成类型 / 提示词 / 左上宽高四个百分比；上移、下移、复制、删除。
 生成类型选「文字」时请填写**文字内容**；空文字框会显示提示并从生成词中跳过，布局仍保留该框。文字内容支持多行，编辑、保存与最终提示词会保留换行。
 
-**③ 标准提示词**：写全局提示词（整张图的场景 / 风格 / 光 / 阅读顺序）；粘贴标准 JSON 后点「导入新布局」或「合并并保留修改」；「导出回输入框」把当前布局导出成可编辑 JSON；底部两个 tab 在「当前标准 JSON / 最终生成词」之间切换，可一键复制。
+**③ 标准提示词**：写全局提示词（整张图的场景 / 风格 / 光 / 阅读顺序）；下方一行填写**画面类型**（单图 / 多格 / 拼贴）、**meta**（媒介 / 体裁标签）与**调色板**，多个值用逗号分隔，这三项写入 `summary` 并直接进模型输入。粘贴标准 JSON 后点「导入新布局」或「合并并保留修改」；「导出回输入框」把当前布局导出成可编辑 JSON，「导出官方草稿」则输出官方工具链能直接吃的 `width/height + abs/xyxy` 草稿；底部两个 tab 在「当前标准 JSON / 最终生成词」之间切换，可一键复制。
 
 **连线**：`画布.layout → 元素.layout` 与 `标准提示词.layout`；`元素.elements / character_boxes → 标准提示词同名输入`；`标准提示词.prompt → CLIPTextEncode.text`。
 
@@ -97,11 +104,11 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git comfyui-moss-la
 
 ```json
 {
-  "summary": {"caption": "整张海报的场景、风格与阅读顺序"},
+  "summary": {"caption": "整张海报的场景、风格与阅读顺序", "meta": ["poster"], "canvas": "single"},
   "items": [
     {"label": "text",      "caption": "字体与承载面描述", "text": "黑暗骑手", "bbox": [358, -320, 493, 320]},
     {"label": "character", "caption": "人物外观描述",                 "bbox": [-447, -266, 293, 266]},
-    {"label": "object",    "caption": "物体外观描述",                 "bbox": [-17, -330, 346, 331]}
+    {"label": "object",    "caption": "物体外观描述", "tags": ["product"], "bbox": [-17, -330, 346, 331]}
   ],
   "bbox_coord_space": "abs_centralized",
   "bbox_format": "yxyx"
@@ -109,10 +116,11 @@ git clone https://github.com/MIKOU306/ComfyUI-MOSS-Layout-UI.git comfyui-moss-la
 ```
 
 - `bbox` = `[y_min, x_min, y_max, x_max]`，整数，**以画布中心为原点**；1024² 画布范围 −512…+512。
-- `label` 只有 `object` / `character` / `text`；`text` 项必须带 `text`。
+- `label` 只有 `object` / `character` / `text`；`text` 项必须带 `text`。界面的 tag（主体 / 人物 / 文字 / 图片 / 装饰 / 版式）只是编辑器分类：人物 → `character`，文字 → `text`，其余都按 `object` 下发，额外语义写进元素的 `tags`。
+- 可选字段（官方定义，不填就不下发）：`summary.meta`、`summary.canvas`（`single` / `multi_panel` / `collage`）、`summary.palette`，元素级 `tags` 与 `palette`。
 - `standard_prompt` 输出的是带缩进的 `moss-layout/v1` 完整布局，方便查看 / 复制 / 版本管理。
 - 全局描述与背景元素描述共同编入 `summary.caption`，完全相同的两段只保留一次；没有前景时输出合并后的自然语言提示词。
-- 布局内部用百分比 `[左%, 上%, 宽%, 高%]`，所以换尺寸不用改数据；但**生成尺寸必须等于画布尺寸**，否则坐标语义就错了。
+- 布局内部用百分比 `[左%, 上%, 宽%, 高%]`（两位小数），所以换尺寸不用改数据；编译时像素边会吸附到整像素，与官方参考编译器结果逐值一致。但**生成尺寸必须等于画布尺寸**，否则坐标语义就错了。
 
 ---
 

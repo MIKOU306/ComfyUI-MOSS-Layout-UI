@@ -160,6 +160,7 @@ function mountCanvas(node) {
     ]),
     h("div", { class: "mlc-stage" }, [ ]),
     h("div", { class: "mlc-hint", text: "Shift 点选多选；选择模式空白拖动框选。Alt 轮选重叠框。方向键微调 0.1%，Shift 为 1%；Ctrl+G 编组。" }),
+    h("div", { class: "mlc-hint", text: "模型只识别 物体 / 人物 / 文字：图片、装饰、版式都按物体下发；需要额外语义请填元素的 tags。" }),
     syncFooter(),
     modal,
   ]);

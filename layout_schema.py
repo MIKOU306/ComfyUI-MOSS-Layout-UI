@@ -32,7 +32,10 @@ TAG_TYPE = {
     "主体": "object", "人物": "character", "文字": "text", "图片": "object",
     "装饰": "object", "版式": "object", "固定": "background",
 }
+TAG_FOR_TYPE = {"object": "主体", "character": "人物", "text": "文字"}
 TYPES = ("character", "object", "text", "background")
+CANVAS_KINDS = ("single", "multi_panel", "collage")
+BOX_STEP = 100  # percent boxes keep two decimals so a pixel edge survives the round trip
 
 
 def _clamp(value, low, high):
@@ -42,6 +45,18 @@ def _clamp(value, low, high):
 def _round1(value):
     rounded = math.floor(value * 10 + 0.5) / 10
     return int(rounded) if rounded == int(rounded) else rounded
+
+
+def _round2(value):
+    rounded = math.floor(value * BOX_STEP + 0.5) / BOX_STEP
+    return int(rounded) if rounded == int(rounded) else rounded
+
+
+def _string_list(value):
+    if not isinstance(value, list):
+        return []
+    items = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return list(dict.fromkeys(items))
 
 
 def _number(value, fallback=0):
@@ -60,11 +75,11 @@ def _clamp_box(box):
     values = list(box[:4]) if isinstance(box, (list, tuple)) else []
     while len(values) < 4:
         values.append(0.0)
-    x = _round1(_clamp(_number(values[0]), 0, 99.9))
-    y = _round1(_clamp(_number(values[1]), 0, 99.9))
-    width = _clamp(_number(values[2], 1), 0.1, 100 - x)
-    height = _clamp(_number(values[3], 1), 0.1, 100 - y)
-    return [_round1(x), _round1(y), _round1(width), _round1(height)]
+    x = _round2(_clamp(_number(values[0]), 0, 99.99))
+    y = _round2(_clamp(_number(values[1]), 0, 99.99))
+    width = _clamp(_number(values[2], 1), 0.01, 100 - x)
+    height = _clamp(_number(values[3], 1), 0.01, 100 - y)
+    return [_round2(x), _round2(y), _round2(width), _round2(height)]
 
 
 def _background(prompt=""):
@@ -78,6 +93,9 @@ def default_layout(width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT):
         "coordinate_system": COORDINATE_SYSTEM,
         "canvas": _canvas_size({}, width, height),
         "global_prompt": "",
+        "meta": [],
+        "canvas_kind": "",
+        "palette": [],
         "elements": [_background()],
     }
 
@@ -106,6 +124,12 @@ def _normalize_element(raw, index):
             element["locked"] = True
         if isinstance(source.get("group_id"), str) and source["group_id"].strip():
             element["group_id"] = source["group_id"].strip()
+        tags = _string_list(source.get("tags"))
+        if tags:
+            element["tags"] = tags
+        palette = _string_list(source.get("palette"))
+        if palette:
+            element["palette"] = palette
     return element
 
 
@@ -169,6 +193,9 @@ def normalize_layout(raw, width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT):
         "coordinate_system": COORDINATE_SYSTEM,
         "canvas": _canvas_size(canvas, width, height),
         "global_prompt": source.get("global_prompt") if isinstance(source.get("global_prompt"), str) else "",
+        "meta": _string_list(source.get("meta")),
+        "canvas_kind": source.get("canvas_kind") if source.get("canvas_kind") in CANVAS_KINDS else "",
+        "palette": _string_list(source.get("palette")),
         "elements": [background or _background(), *elements],
     }
 
@@ -203,6 +230,49 @@ def _candidates(text):
                     break
 
 
+def _is_official_draft(value):
+    """The readable draft the official compiler accepts: abs pixels, xyxy."""
+    return (isinstance(value, dict) and isinstance(value.get("items"), list)
+            and value.get("bbox_coord_space") == "abs" and value.get("bbox_format") == "xyxy")
+
+
+def official_draft_to_layout(draft):
+    """Convert an official abs/xyxy draft into the percent layout this editor stores."""
+    width = int(_clamp(_number(draft.get("width"), DEFAULT_WIDTH) or DEFAULT_WIDTH, MIN_CANVAS, MAX_CANVAS))
+    height = int(_clamp(_number(draft.get("height"), DEFAULT_HEIGHT) or DEFAULT_HEIGHT, MIN_CANVAS, MAX_CANVAS))
+    summary = draft.get("summary") if isinstance(draft.get("summary"), dict) else {}
+    elements = [_background()]
+    for item in draft["items"]:
+        if not isinstance(item, dict):
+            continue
+        label = item.get("label") if item.get("label") in TAG_FOR_TYPE else "object"
+        box = list(item.get("bbox") or [])[:4]
+        while len(box) < 4:
+            box.append(0)
+        x1, y1, x2, y2 = (_number(value) for value in box)
+        element = {
+            "tag": TAG_FOR_TYPE[label],
+            "type": label,
+            "box": [x1 / width * 100, y1 / height * 100, (x2 - x1) / width * 100, (y2 - y1) / height * 100],
+            "prompt": item.get("caption") if isinstance(item.get("caption"), str) else "",
+        }
+        if label == "text":
+            element["text"] = item.get("text") if isinstance(item.get("text"), str) else ""
+        if isinstance(item.get("tags"), list):
+            element["tags"] = _string_list(item["tags"])
+        if isinstance(item.get("palette"), list):
+            element["palette"] = _string_list(item["palette"])
+        elements.append(element)
+    return {
+        "canvas": {"width": width, "height": height},
+        "global_prompt": summary.get("caption") if isinstance(summary.get("caption"), str) else "",
+        "meta": _string_list(summary.get("meta")),
+        "canvas_kind": summary.get("canvas") if summary.get("canvas") in CANVAS_KINDS else "",
+        "palette": _string_list(summary.get("palette")),
+        "elements": elements,
+    }
+
+
 def _layout_value(value):
     if isinstance(value, list):
         return {"elements": value}
@@ -210,6 +280,8 @@ def _layout_value(value):
         if value.get("schema", SCHEMA) != SCHEMA or value.get("coordinate_system", COORDINATE_SYSTEM) != COORDINATE_SYSTEM:
             raise ValueError("布局格式不兼容：需要 moss-layout/v1 和 percent_xywh 坐标。")
         return value
+    if _is_official_draft(value):
+        return official_draft_to_layout(value)
     return None
 
 
@@ -246,6 +318,14 @@ def _foreground(layout):
             and (element["type"] != "text" or element.get("text", "").strip())]
 
 
+def _pixel_edges(low, high):
+    """Snap two percent-derived pixel edges to whole pixels, enclosing sub-pixel boxes."""
+    start, end = int(math.floor(low + 0.5)), int(math.floor(high + 0.5))
+    if end <= start:
+        return math.floor(low), math.ceil(high)
+    return start, end
+
+
 def _compiled_item(element, width, height, character=False):
     left, top, box_width, box_height = element["box"]
     x1 = left / 100 * width
@@ -254,6 +334,10 @@ def _compiled_item(element, width, height, character=False):
     y2 = (top + box_height) / 100 * height
     half_width = width // 2
     half_height = height // 2
+    # Percent storage puts an edge within a tenth of a pixel of its integer; snap
+    # to that pixel so floor/ceil cannot add a stray pixel of drift.
+    y_min, y_max = _pixel_edges(y1, y2)
+    x_min, x_max = _pixel_edges(x1, x2)
     has_text = element["type"] == "text" and bool((element.get("text") or "").strip())
     if has_text:
         label = "text"
@@ -264,16 +348,27 @@ def _compiled_item(element, width, height, character=False):
     item = {
         "label": label,
         "caption": _text_caption(element),
-        "bbox": [
-            math.floor(y1) - half_height,
-            math.floor(x1) - half_width,
-            math.ceil(y2) - half_height,
-            math.ceil(x2) - half_width,
-        ],
+        "bbox": [y_min - half_height, x_min - half_width, y_max - half_height, x_max - half_width],
     }
     if label == "text":
         item["text"] = element["text"]
+    for key in ("tags", "palette"):
+        values = _string_list(element.get(key))
+        if values:
+            item[key] = values
     return item
+
+
+def _summary(layout, caption):
+    """The official summary block: caption plus the optional metadata fields."""
+    summary = {"caption": caption}
+    if layout.get("meta"):
+        summary["meta"] = layout["meta"]
+    if layout.get("canvas_kind"):
+        summary["canvas"] = layout["canvas_kind"]
+    if layout.get("palette"):
+        summary["palette"] = layout["palette"]
+    return summary
 
 
 def compile_prompt(layout, characters=()):
@@ -290,7 +385,7 @@ def compile_prompt(layout, characters=()):
     caption = "\n".join(dict.fromkeys(part for part in (layout["global_prompt"].strip(), background) if part))
     if foreground:
         prompt = {
-            "summary": {"caption": caption},
+            "summary": _summary(layout, caption),
             "items": [_compiled_item(element, width, height, position in characters)
                       for position, element in enumerate(foreground, start=1)],
             "bbox_coord_space": "abs_centralized",

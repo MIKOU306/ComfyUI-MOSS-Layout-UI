@@ -33,6 +33,16 @@ export const TYPES = [
 export const TYPE_IDS = TYPES.map((type) => type.id);
 export const TYPE_LABEL = Object.fromEntries(TYPES.map((type) => [type.id, type.label]));
 
+// The model only knows these three item labels; every other tag is editor-only and
+// rides along in the optional item.tags array instead.
+export const LABELS = ["object", "character", "text"];
+export const CANVAS_KINDS = [
+  { id: "", label: "未指定" },
+  { id: "single", label: "单图" },
+  { id: "multi_panel", label: "多格" },
+  { id: "collage", label: "拼贴" },
+];
+
 const DEFAULT_WIDTH = 1088;
 const DEFAULT_HEIGHT = 1920;
 const MIN_CANVAS = 16;
@@ -209,18 +219,28 @@ function clamp(value, low, high) {
   return Math.min(Math.max(value, low), high);
 }
 
-export function round1(value) {
-  return Math.round(Number(value) * 10) / 10;
+// Percent boxes keep two decimals so a pixel edge survives the round trip.
+export function round2(value) {
+  return Math.round(Number(value) * 100) / 100;
 }
 
 export function clampBox(box) {
   const values = Array.isArray(box) ? box.slice(0, 4) : [];
   while (values.length < 4) values.push(0);
-  const x = round1(clamp(finiteNumber(values[0], 0), 0, 99.9));
-  const y = round1(clamp(finiteNumber(values[1], 0), 0, 99.9));
-  const width = clamp(finiteNumber(values[2], 1), 0.1, 100 - x);
-  const height = clamp(finiteNumber(values[3], 1), 0.1, 100 - y);
-  return [round1(x), round1(y), round1(width), round1(height)];
+  const x = round2(clamp(finiteNumber(values[0], 0), 0, 99.99));
+  const y = round2(clamp(finiteNumber(values[1], 0), 0, 99.99));
+  const width = clamp(finiteNumber(values[2], 1), 0.01, 100 - x);
+  const height = clamp(finiteNumber(values[3], 1), 0.01, 100 - y);
+  return [round2(x), round2(y), round2(width), round2(height)];
+}
+
+export function stringList(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()))];
+}
+
+export function splitList(text) {
+  return stringList(String(text ?? "").split(","));
 }
 
 function finiteNumber(value, fallback) {
@@ -253,6 +273,9 @@ export function createLayout(width = DEFAULT_WIDTH, height = DEFAULT_HEIGHT) {
     coordinate_system: COORDINATE_SYSTEM,
     canvas: size,
     global_prompt: "",
+    meta: [],
+    canvas_kind: "",
+    palette: [],
     elements: [backgroundElement()],
   };
 }
@@ -279,6 +302,10 @@ function normalizeElement(raw, index) {
   if (type !== "background") {
     if (source.locked === true) element.locked = true;
     if (typeof source.group_id === "string" && source.group_id.trim()) element.group_id = source.group_id.trim();
+    const tags = stringList(source.tags);
+    if (tags.length) element.tags = tags;
+    const palette = stringList(source.palette);
+    if (palette.length) element.palette = palette;
   }
   return element;
 }
@@ -304,6 +331,9 @@ export function normalizeLayout(raw, fallback) {
     coordinate_system: COORDINATE_SYSTEM,
     canvas: size,
     global_prompt: globalPrompt,
+    meta: stringList(source.meta),
+    canvas_kind: CANVAS_KINDS.some((kind) => kind.id === source.canvas_kind) ? source.canvas_kind : "",
+    palette: stringList(source.palette),
     elements: normalized,
   };
 }
@@ -339,12 +369,50 @@ function* jsonObjects(text) {
   }
 }
 
+export function isOfficialDraft(value) {
+  return Boolean(value) && typeof value === "object" && Array.isArray(value.items)
+    && value.bbox_coord_space === "abs" && value.bbox_format === "xyxy";
+}
+
+// Convert the official abs/xyxy draft into the percent layout this editor stores.
+export function layoutFromOfficialDraft(draft) {
+  const size = canvasSize({ width: draft.width, height: draft.height });
+  const summary = draft.summary && typeof draft.summary === "object" ? draft.summary : {};
+  const elements = draft.items
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .map((item, index) => {
+      const label = LABELS.includes(item.label) ? item.label : "object";
+      const box = Array.isArray(item.bbox) ? item.bbox.map((value) => finiteNumber(value, 0)) : [];
+      const [x1 = 0, y1 = 0, x2 = 0, y2 = 0] = box;
+      const element = {
+        name: `元素 ${String(index + 1).padStart(2, "0")}`,
+        tag: label === "character" ? "人物" : label === "text" ? "文字" : "主体",
+        type: label,
+        box: [x1 / size.width * 100, y1 / size.height * 100,
+          (x2 - x1) / size.width * 100, (y2 - y1) / size.height * 100],
+        prompt: typeof item.caption === "string" ? item.caption : "",
+      };
+      if (label === "text") element.text = typeof item.text === "string" ? item.text : "";
+      if (Array.isArray(item.tags)) element.tags = stringList(item.tags);
+      if (Array.isArray(item.palette)) element.palette = stringList(item.palette);
+      return element;
+    });
+  return {
+    canvas: size,
+    global_prompt: typeof summary.caption === "string" ? summary.caption : "",
+    meta: stringList(summary.meta),
+    canvas_kind: CANVAS_KINDS.some((kind) => kind.id === summary.canvas) ? summary.canvas : "",
+    palette: stringList(summary.palette),
+    elements: [backgroundElement(), ...elements],
+  };
+}
+
 export function candidateLayout(value) {
   if (Array.isArray(value)) return { elements: value };
   if (!value || typeof value !== "object") return null;
   if (Array.isArray(value.elements) && (!Object.hasOwn(value, "schema") || value.schema === SCHEMA)
       && (!Object.hasOwn(value, "coordinate_system") || value.coordinate_system === COORDINATE_SYSTEM)) return value;
-  if (Array.isArray(value.items)) return null;
+  if (isOfficialDraft(value)) return layoutFromOfficialDraft(value);
   return null;
 }
 
@@ -357,7 +425,7 @@ export function readRawLayout(raw) {
   for (const candidateText of candidates()) {
     let value;
     try { value = JSON.parse(candidateText); } catch { continue; }
-    if (Array.isArray(value) || Array.isArray(value?.elements)) return candidateLayout(value);
+    if (Array.isArray(value) || Array.isArray(value?.elements) || isOfficialDraft(value)) return candidateLayout(value);
   }
   return null;
 }
@@ -375,6 +443,12 @@ export function serializePretty(layout) {
   return JSON.stringify(layout, null, 2);
 }
 
+function pixelEdges(low, high) {
+  const start = Math.floor(low + 0.5);
+  const end = Math.floor(high + 0.5);
+  return end <= start ? [Math.floor(low), Math.ceil(high)] : [start, end];
+}
+
 function compiledItem(element, width, height, character = false) {
   const [left, top, boxWidth, boxHeight] = element.box;
   const x1 = (left / 100) * width;
@@ -383,19 +457,28 @@ function compiledItem(element, width, height, character = false) {
   const y2 = ((top + boxHeight) / 100) * height;
   const halfWidth = Math.floor(width / 2);
   const halfHeight = Math.floor(height / 2);
+  const [yMin, yMax] = pixelEdges(y1, y2);
+  const [xMin, xMax] = pixelEdges(x1, x2);
   const hasText = element.type === "text" && (element.text ?? "").trim();
   const item = {
     label: hasText ? "text" : character || element.type === "character" ? "character" : "object",
     caption: textCaption(element),
-    bbox: [
-      Math.floor(y1) - halfHeight,
-      Math.floor(x1) - halfWidth,
-      Math.ceil(y2) - halfHeight,
-      Math.ceil(x2) - halfWidth,
-    ],
+    bbox: [yMin - halfHeight, xMin - halfWidth, yMax - halfHeight, xMax - halfWidth],
   };
   if (item.label === "text") item.text = element.text;
+  for (const key of ["tags", "palette"]) {
+    const values = stringList(element[key]);
+    if (values.length) item[key] = values;
+  }
   return item;
+}
+
+function summaryBlock(layout, caption) {
+  const summary = { caption };
+  if (layout.meta.length) summary.meta = layout.meta;
+  if (layout.canvas_kind) summary.canvas = layout.canvas_kind;
+  if (layout.palette.length) summary.palette = layout.palette;
+  return summary;
 }
 
 export function compilePrompt(layout, characters = []) {
@@ -407,13 +490,41 @@ export function compilePrompt(layout, characters = []) {
   let prompt = caption;
   if (foreground.length) {
     prompt = JSON.stringify({
-      summary: { caption },
+      summary: summaryBlock(normalized, caption),
       items: foreground.map((element, index) => compiledItem(element, width, height, characters.includes(index + 1))),
       bbox_coord_space: "abs_centralized",
       bbox_format: "yxyx",
     });
   }
   return { prompt, standard: serializePretty(normalized) };
+}
+
+// The editable draft the official compiler takes: absolute pixels, xyxy.
+export function officialDraft(layout) {
+  const normalized = normalizeLayout(layout);
+  const { width, height } = normalized.canvas;
+  // Whole pixels: the same snapping the compiler applies, so a round trip is stable.
+  const scale = (value, size) => Math.round(value / 100 * size);
+  return {
+    width,
+    height,
+    bbox_coord_space: "abs",
+    bbox_format: "xyxy",
+    summary: summaryBlock(normalized, normalized.global_prompt.trim() || normalized.elements[0].prompt.trim()),
+    items: normalized.elements.slice(1).map((element) => {
+      const [left, top, boxWidth, boxHeight] = element.box;
+      const item = {
+        label: LABELS.includes(element.type) ? element.type : "object",
+        caption: textCaption(element) || element.name,
+        bbox: [scale(left, width), scale(top, height),
+          scale(left + boxWidth, width), scale(top + boxHeight, height)],
+      };
+      if (item.label === "text" && (element.text ?? "").trim()) item.text = element.text;
+      if (element.tags?.length) item.tags = element.tags;
+      if (element.palette?.length) item.palette = element.palette;
+      return item;
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------

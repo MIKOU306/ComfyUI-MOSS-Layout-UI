@@ -4,7 +4,7 @@
 
 import {
   TAGS, TYPES, TAG_TYPE, h, injectStyle, tagColor, padIndex, autosizeTextarea,
-  getLayoutStore, syncFooter, button, upstreamCanvas,
+  getLayoutStore, syncFooter, button, upstreamCanvas, splitList,
 } from "./moss_common.js";
 import { positionLocked, selectionUnits } from "./moss_edit.js";
 import { FONT_STYLES, normalizeTypography, textMetrics, wrapText, drawTextPreview } from "./moss_text.js";
@@ -16,6 +16,7 @@ const BOX_LABELS = ["左 %", "上 %", "宽 %", "高 %"];
 const PROMPT_PLACEHOLDER = "描述该元素的画面内容、外观、材质、光线…";
 const clamp = (value, low, high) => Math.min(Math.max(value, low), high);
 const oneDecimal = (value) => (Math.round(Number(value) * 10) / 10).toFixed(1);
+const twoDecimals = (value) => String(Math.round(Number(value) * 100) / 100);
 
 const CSS = `
 .mle-root{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;box-sizing:border-box;
@@ -215,6 +216,23 @@ export function mountElements(node) {
       numInputs[part],
     ])));
 
+  const tagsInput = h("input", {
+    class: "ml-input mle-tags", type: "text", spellcheck: "false",
+    placeholder: "补充类别，进入 item.tags，如 logo, icon",
+  });
+  const paletteInput = h("input", {
+    class: "ml-input mle-palette", type: "text", spellcheck: "false",
+    placeholder: "该项配色，进入 item.palette",
+  });
+  tagsInput.addEventListener("input", () => patchSelected((element) => {
+    const tags = splitList(tagsInput.value);
+    if (tags.length) element.tags = tags; else delete element.tags;
+  }));
+  paletteInput.addEventListener("input", () => patchSelected((element) => {
+    const palette = splitList(paletteInput.value);
+    if (palette.length) element.palette = palette; else delete element.palette;
+  }));
+
   const moveUp = button("上移", { title: "与上一个元素交换位置", onClick: () => moveSelected(-1) });
   const moveDown = button("下移", { title: "与下一个元素交换位置", onClick: () => moveSelected(1) });
   const copyButton = button("复制元素", { title: "复制当前元素并插入到它后面", onClick: () => copySelected() });
@@ -234,6 +252,10 @@ export function mountElements(node) {
     textField,
     textAssistant,
     numRow,
+    h("div", { class: "mle-grid2" }, [
+      labelled("附加 tags · 进模型", tagsInput),
+      labelled("配色 palette · 进模型", paletteInput),
+    ]),
     actionRow,
   ]);
 
@@ -340,7 +362,7 @@ export function mountElements(node) {
     });
     input.addEventListener("blur", () => {
       const element = selectedElement();
-      if (element) input.value = oneDecimal(element.box[part]);
+      if (element) input.value = twoDecimals(element.box[part]);
     });
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -565,8 +587,15 @@ export function mountElements(node) {
 
     numInputs.forEach((input, part) => {
       input.disabled = locked;
-      if (force || document.activeElement !== input) input.value = oneDecimal(element.box[part]);
+      if (force || document.activeElement !== input) input.value = twoDecimals(element.box[part]);
     });
+
+    const tagsText = (element.tags ?? []).join(", ");
+    if (document.activeElement !== tagsInput && tagsInput.value !== tagsText) tagsInput.value = tagsText;
+    const paletteText = (element.palette ?? []).join(", ");
+    if (document.activeElement !== paletteInput && paletteInput.value !== paletteText) paletteInput.value = paletteText;
+    tagsInput.disabled = isBackground;
+    paletteInput.disabled = isBackground;
 
     moveUp.disabled = isBackground || index <= 1;
     moveDown.disabled = isBackground || index >= layout.elements.length - 1;

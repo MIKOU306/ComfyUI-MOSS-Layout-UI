@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 · 2026-10-23
+
+- 支持官方可选字段：`summary.meta`、`summary.canvas`（单图 / 多格 / 拼贴）、`summary.palette`，以及每个元素的 `tags`、`palette`。标准提示词节点新增三项输入，元素管理节点新增两行输入，全部直接编译进模型提示词。
+- 可以导入官方的 `width/height + abs/xyxy` 草稿：坐标自动换算成百分比；新增「导出官方草稿」按钮，可回写给官方工具链。
+- 坐标精度从 0.1% 提到 0.01%，编译时把像素边吸附到整像素。此前 bbox 相对官方参考编译器有 0–1px 偏差，现在逐值一致。
+- 画布增加提示：模型只识别 物体 / 人物 / 文字，图片、装饰、版式都按物体下发，额外语义请写进元素 tags。
+- 修复已连线时输入行只有连接点、没有名称：前端会跳过已连线行的 `widget.draw`，改由节点 `onDrawForeground` 补画。
+
 ## 1.2.2 · 2026-10-23
 
 - 修复已连线时输入行只有连接点、没有名称：前端对已连线的 widget 行会跳过 `widget.draw`，改由节点 `onDrawForeground` 补画 `layout / elements / character_boxes · 已连线`。

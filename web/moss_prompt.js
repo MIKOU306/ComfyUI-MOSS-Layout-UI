@@ -3,7 +3,7 @@
 
 import {
   h, injectStyle, getLayoutStore, syncFooter, button, compilePrompt, parseLayout,
-  serializePretty, readRawLayout,
+  serializePretty, readRawLayout, officialDraft, splitList, CANVAS_KINDS,
 } from "./moss_common.js";
 
 import { mountTemplates } from "./moss_templates.js";
@@ -22,6 +22,9 @@ const CSS = `
 .mls-standard{height:168px;resize:none}
 .mls-actions{display:flex;gap:9px;margin:0 0 8px;flex:0 0 auto}
 .mls-actions .ml-btn{height:34px;padding:0 14px;font-size:13px}
+.mls-meta{display:flex;gap:8px;margin:0 0 8px;flex:0 0 auto;flex-wrap:wrap}
+.mls-meta-field{display:flex;flex-direction:column;gap:3px;font-size:11px;color:#8b93a1;flex:1 1 120px;min-width:0}
+.mls-meta-input,.mls-meta-select{height:28px;font-size:12px;padding:0 8px;min-width:0}
 .mls-note{margin:0 0 2px;font-size:12.5px;line-height:1.55;color:#8b93a1;flex:0 0 auto}
 .mls-status{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:#8b93a1;flex:0 0 auto}
 .mls-tabs{display:flex;align-items:center;margin:0 0 8px;flex:0 0 auto}
@@ -64,6 +67,10 @@ export function mountPrompt(node) {
     placeholder: "粘贴标准布局 JSON，然后点击「导入新布局」或「合并并保留修改」。",
   });
   const statusEl = h("p", { class: "mls-status" });
+  const metaInput = h("input", { class: "ml-input mls-meta-input", placeholder: "媒介 / 体裁，如 poster, photography" });
+  const paletteInput = h("input", { class: "ml-input mls-meta-input", placeholder: "整体色板，如 warm ivory, dark green" });
+  const canvasKind = h("select", { class: "ml-select mls-meta-select" },
+    CANVAS_KINDS.map((kind) => h("option", { value: kind.id, text: kind.label })));
   const preview = h("textarea", {
     class: "ml-textarea mls-preview ml-scroll",
     readonly: "readonly",
@@ -111,6 +118,14 @@ export function mountPrompt(node) {
     if (globalArea.value !== layout.global_prompt) globalArea.value = layout.global_prompt;
   }
 
+  function refreshSummary(layout) {
+    const meta = (layout.meta ?? []).join(", ");
+    if (document.activeElement !== metaInput && metaInput.value !== meta) metaInput.value = meta;
+    const palette = (layout.palette ?? []).join(", ");
+    if (document.activeElement !== paletteInput && paletteInput.value !== palette) paletteInput.value = palette;
+    if (canvasKind.value !== (layout.canvas_kind ?? "")) canvasKind.value = layout.canvas_kind ?? "";
+  }
+
   function refreshStatus(layout) {
     const foreground = Math.max(0, layout.elements.length - 1);
     statusEl.textContent = foreground
@@ -120,6 +135,7 @@ export function mountPrompt(node) {
 
   function render(layout) {
     refreshGlobal(layout);
+    refreshSummary(layout);
     refreshPreview();
     refreshStatus(layout);
     refreshChecks();
@@ -216,22 +232,54 @@ export function mountPrompt(node) {
   promptTab.addEventListener("click", () => setTab("prompt"));
   copyButton.addEventListener("click", copyOutput);
 
+  function patchSummary(patch) {
+    layoutStore.update((layout) => Object.assign(layout, patch), node.id);
+  }
+  metaInput.addEventListener("input", () => patchSummary({ meta: splitList(metaInput.value) }));
+  paletteInput.addEventListener("input", () => patchSummary({ palette: splitList(paletteInput.value) }));
+  canvasKind.addEventListener("change", () => patchSummary({ canvas_kind: canvasKind.value }));
+
   const importButton = button("导入新布局", { className: "mls-import", onClick: importLayout });
   const mergeButton = button("合并并保留修改", { className: "mls-merge", onClick: mergeLayout });
   const exportButton = button("导出回输入框", { className: "mls-export", onClick: exportToBuffer });
+  const draftButton = button("导出官方草稿", {
+    className: "mls-draft",
+    onClick: () => {
+      standardArea.value = JSON.stringify(officialDraft(layoutStore.get()), null, 2);
+      statusEl.textContent = "已按官方 abs / xyxy 草稿格式导出到输入框。";
+    },
+  });
 
   const root = h("div", { class: "ml-root mls-root" }, [
     h("div", { class: "ml-card mls-card" }, [
       h("div", { class: "mls-title", text: "标准提示词 → 画布 → 最终生成词" }),
       h("span", { class: "mls-label", text: "全局提示词 · 当前画布的生成依据" }),
       globalArea,
+      h("div", { class: "mls-meta" }, [
+        h("label", { class: "mls-meta-field" }, [
+          h("span", { text: "画面类型" }),
+          canvasKind,
+        ]),
+        h("label", { class: "mls-meta-field" }, [
+          h("span", { text: "meta" }),
+          metaInput,
+        ]),
+        h("label", { class: "mls-meta-field" }, [
+          h("span", { text: "调色板" }),
+          paletteInput,
+        ]),
+      ]),
+      h("p", {
+        class: "mls-note",
+        text: "画面类型写入 summary.canvas（单图 / 多格 / 拼贴），meta 与调色板写入 summary.meta 与 summary.palette；三项都直接进模型输入，不填则不下发。多个值用逗号分隔。",
+      }),
       mountTemplates(node, layoutStore),
       h("span", { class: "mls-label", text: "标准输入 · 粘贴后点击导入" }),
       standardArea,
-      h("div", { class: "mls-actions" }, [importButton, mergeButton, exportButton]),
+      h("div", { class: "mls-actions" }, [importButton, mergeButton, exportButton, draftButton]),
       h("p", {
         class: "mls-note",
-        text: "导入只在点击按钮时执行。运行和导出始终读取当前画布。canvas 尺寸用于坐标语境，实际分辨率由选择器控制。",
+        text: "导入只在点击按钮时执行。可粘贴 moss-layout 布局，或官方的 width/height + abs/xyxy 草稿。运行和导出始终读取当前画布。",
       }),
       statusEl,
       checks,
