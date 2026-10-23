@@ -101,18 +101,24 @@ const LINK_ROW_HEIGHT = 22;
 
 // Hiding a widget removes its whole row, and the input socket goes with it.
 // Keep a narrow row that shows the connection state instead of the JSON payload.
+function drawLinkedRowLabel(ctx, node, widget, y, height) {
+  const slot = node.inputs?.findIndex((input) => input.widget?.name === widget.name) ?? -1;
+  const linked = slot >= 0 && node.inputs[slot].link != null;
+  const label = widget.label ?? widget.displayName ?? widget.name;
+  ctx.save();
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = linked ? "#9fd3ff" : "#8b93a1";
+  ctx.fillText(`${label} · ${linked ? "已连线" : "未连线"}`, 15, y + height / 2);
+  ctx.restore();
+}
+
 function compactLinkedWidget(widget) {
   widget.hidden = false;
   widget.computeSize = () => [0, LINK_ROW_HEIGHT];
   widget.draw = function (ctx, node, width, y, height) {
-    const slot = node.inputs?.findIndex((input) => input.widget?.name === widget.name) ?? -1;
-    const linked = slot >= 0 && node.inputs[slot].link != null;
-    ctx.save();
-    ctx.font = "12px sans-serif";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = linked ? "#9fd3ff" : "#8b93a1";
-    ctx.fillText(`${widget.label ?? widget.name} · ${linked ? "已连线" : "未连线"}`, 15, y + height / 2);
-    ctx.restore();
+    drawLinkedRowLabel(ctx, node, widget, y, height);
   };
 }
 
@@ -653,6 +659,22 @@ export function getLayoutStore(node) {
         }
         if (LINKED_WIDGETS.has(entry.name)) compactLinkedWidget(entry);
       }
+      // A connected widget row is drawn by the frontend itself and never reaches
+      // widget.draw. When it has no row height to draw its own dimmed label in,
+      // paint the label here so the row is still readable.
+      const previousForeground = node.onDrawForeground;
+      node.onDrawForeground = function (ctx, canvas) {
+        const result = previousForeground?.apply(this, arguments);
+        for (const row of this.widgets ?? []) {
+          if (!LINKED_WIDGETS.has(row.name) || row.height) continue;
+          const slot = this.inputs?.findIndex((input) => input.widget?.name === row.name) ?? -1;
+          if (slot < 0 || this.inputs[slot].link == null) continue;
+          const y = row.last_y ?? row.y;
+          if (!Number.isFinite(y)) continue;
+          drawLinkedRowLabel(ctx, this, row, y, LINK_ROW_HEIGHT);
+        }
+        return result;
+      };
       const widget = node.widgets?.find((entry) => entry.name === "state");
       if (!widget) console.warn("[moss-layout-ui] 找不到 state widget，画布修改不会被保存", node.type);
       entry.widget = widget;

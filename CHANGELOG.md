@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2 · 2026-10-23
+
+- 修复已连线时输入行只有连接点、没有名称：前端对已连线的 widget 行会跳过 `widget.draw`，改由节点 `onDrawForeground` 补画 `layout / elements / character_boxes · 已连线`。
+
 ## 1.2.1 · 2026-10-23
 
 - 修复连线后输入端口消失：`layout` / `elements` / `character_boxes` 不再整行隐藏，改为 22px 窄行显示「已连线 / 未连线」，左侧连接点可以正常看到和断开；`state` 仍完全隐藏。
